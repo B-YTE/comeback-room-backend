@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: comebackroom
+  profiles:
+    active: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health
+    endpoint:
+      health:
+        show-details: never
+
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}]"
