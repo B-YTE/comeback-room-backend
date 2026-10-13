@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.1.1'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'jacoco'
 }
 
 group = 'com.comebackroom'
@@ -42,4 +43,26 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport // 테스트 종료 시 리포트 자동 생성
+}
+
+jacocoTestReport {
+	dependsOn tasks.named('test')
+
+	reports {
+		xml.required = true
+		html.required = true
+	}
+
+	// 테스트 커버리지 집게 대상에서 제외할 클래스
+	classDirectories.setFrom(
+			files(classDirectories.files.collect {
+				fileTree(dir: it, exclude: [
+				        '**/ComebackRoomApplication.class',
+						'**/global/config/**',
+						'**/dto/**',
+						'**/Q*.class'
+				])
+			})
+	)
 }
