@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -79,6 +80,15 @@ public class GlobalExceptionHandler {
     ) {
         log.warn("지원하지 않는 메서드 path={} method={}", request.getRequestURI(), e.getMethod());
         return toResponse(GlobalErrorCode.METHOD_NOT_ALLOWED, request);
+    }
+
+    // 지원하지 않는 Content Type (415)
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException e, HttpServletRequest request
+    ) {
+        log.warn("지원하지 않는 Content-Type path={}", request.getRequestURI());
+        return toResponse(GlobalErrorCode.UNSUPPORTED_MEDIA_TYPE, request);
     }
 
     // 예상치 못한 예외 (500)
