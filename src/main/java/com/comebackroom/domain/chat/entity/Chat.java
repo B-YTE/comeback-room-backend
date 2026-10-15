@@ -27,18 +27,18 @@ public class Chat extends BaseCreatedEntity {
     @JoinColumn(name = "room_id", nullable = false)
     private WatchingRoom room;
 
-    @Column(name = "video_position", nullable = false)
-    private Integer videoPosition;
+    @Column(name = "video_position_seconds", nullable = false)
+    private Integer videoPositionSeconds;
 
     @Column(name = "content", length = 500, nullable = false)
     private String content;
 
     @Builder
     private Chat(Member member, WatchingRoom room,
-                 Integer videoPosition, String content) {
+                 Integer videoPositionSeconds, String content) {
         this.member = member;
         this.room = room;
-        this.videoPosition = videoPosition;
+        this.videoPositionSeconds = videoPositionSeconds;
         this.content = content;
     }
 }

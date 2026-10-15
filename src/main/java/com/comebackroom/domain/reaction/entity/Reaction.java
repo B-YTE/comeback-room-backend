@@ -32,16 +32,16 @@ public class Reaction extends BaseCreatedEntity {
     @Column(name = "reaction_type", length = 20, nullable = false)
     private ReactionType type;
 
-    @Column(name = "video_position", nullable = false)
-    private Integer videoPosition;
+    @Column(name = "video_position_seconds", nullable = false)
+    private Integer videoPositionSeconds;
 
     @Builder
     private Reaction(WatchingRoom room, Member member,
-                     ReactionType type, Integer videoPosition) {
+                     ReactionType type, Integer videoPositionSeconds) {
         this.room = room;
         this.member = member;
         this.type = type;
-        this.videoPosition = videoPosition;
+        this.videoPositionSeconds = videoPositionSeconds;
     }
 
 }

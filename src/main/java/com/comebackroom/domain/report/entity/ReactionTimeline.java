@@ -20,21 +20,21 @@ public class ReactionTimeline {
     @JoinColumn(name = "report_id", nullable = false)
     private Report report;
 
-    @Column(name = "start_second", nullable = false)
-    private Integer startSecond;
+    @Column(name = "start_seconds", nullable = false)
+    private Integer startSeconds;
 
-    @Column(name = "end_second", nullable = false)
-    private Integer endSecond;
+    @Column(name = "end_seconds", nullable = false)
+    private Integer endSeconds;
 
     @Column(name = "reaction_count", nullable = false)
     private Integer reactionCount;
 
     @Builder
-    private ReactionTimeline(Report report, Integer startSecond,
-                             Integer endSecond, Integer reactionCount){
+    private ReactionTimeline(Report report, Integer startSeconds,
+                             Integer endSeconds, Integer reactionCount){
         this.report = report;
-        this.startSecond = startSecond;
-        this.endSecond = endSecond;
+        this.startSeconds = startSeconds;
+        this.endSeconds = endSeconds;
         this.reactionCount = reactionCount;
     }
 }

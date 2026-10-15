@@ -20,11 +20,11 @@ public class PopularScene {
     @JoinColumn(name = "report_id", nullable = false)
     private Report report;
 
-    @Column(name = "start_second", nullable = false)
-    private Integer startSecond;
+    @Column(name = "start_seconds", nullable = false)
+    private Integer startSeconds;
 
-    @Column(name = "end_second", nullable = false)
-    private Integer endSecond;
+    @Column(name = "end_seconds", nullable = false)
+    private Integer endSeconds;
 
     @Column(name = "score", nullable = false)
     private Integer score;
@@ -33,11 +33,11 @@ public class PopularScene {
     private Integer rank;
 
     @Builder
-    private PopularScene(Report report, Integer startSecond, Integer endSecond,
+    private PopularScene(Report report, Integer startSeconds, Integer endSeconds,
                          Integer score, Integer rank){
         this.report = report;
-        this.startSecond = startSecond;
-        this.endSecond = endSecond;
+        this.startSeconds = startSeconds;
+        this.endSeconds = endSeconds;
         this.score = score;
         this.rank = rank;
     }
