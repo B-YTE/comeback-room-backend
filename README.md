@@ -5,12 +5,12 @@
 </div>
 
 
-## COMEBACK ROOM
+## 🌐 COMEBACK ROOM
 > THE COMEBACK STARTS TOGETHER
 > 같이 보는 순간, 컴백은 더 커진다.
 
 COMEBACK ROOM은 아이돌 팬들이 공식 유튜브 영상을 함께 보며 실시간으로 소통하는 팬 참여형 동시 시청 플랫폼입니다.
-방장의 재생에 맞춰 모든 참여자의 영상이 실시간 동기화되며, 채팅, 리액션, 투표 같은 참여 기능으로 팬들이 같은 순간을 함께 즐길 수 있습니다.
+설정한 시작 시각에 맞춰 모든 참여자의 영상이 함께 재생되며, 채팅, 리액션, 투표 같은 참여 기능으로 팬들이 같은 순간을 함께 즐길 수 있습니다.
 
 
 
@@ -28,14 +28,28 @@ COMEBACK ROOM은 아이돌 팬들이 공식 유튜브 영상을 함께 보며 �
 | Database | PostgreSQL 17 |
 | Migration | Flyway |
 | Build | Gradle |
-| Test | JUnit 5, Testcontainers, JaCoCo |
+| Test | JUnit 6, Testcontainers, JaCoCo |
 
+
+## 🌱 환경변수 설정
+
+예시 파일을 복사해 본인 로컬 값으로 채워 사용합니다. <br />
+이 `.env` 파일은 DB 컨테이너(docker-compose)와 애플리케이션이 공통으로 참조합니다.
+
+```bash
+cp .env.example .env
+# .env 파일을 열어 본인의 DB 접속 정보 등을 채웁니다.
+```
 
 ## 📚 데이터베이스 준비
 
-### 1) 데이터베이스 생성
+### 1) DB 컨테이너 실행
 
-PostgreSQL에 접속해 데이터베이스를 생성합니다.
+환경변수 파일(`.env`)이 준비되었으면 docker-compose로 PostgreSQL을 띄웁니다.
+
+```bash
+docker compose up -d
+```
 
 ### 2) 테이블 생성 (Flyway 자동 실행)
 
