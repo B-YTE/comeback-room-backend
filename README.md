@@ -19,7 +19,7 @@ COMEBACK ROOM은 아이돌 팬들이 공식 유튜브 영상을 함께 보며 �
 
 
 
-## 1. 기술 스택
+## 🔨 기술 스택
 
 | 구분 | 사용 기술 |
 | --- | --- |
@@ -31,7 +31,7 @@ COMEBACK ROOM은 아이돌 팬들이 공식 유튜브 영상을 함께 보며 �
 | Test | JUnit 5, Testcontainers, JaCoCo |
 
 
-## 2. 데이터베이스 준비
+## 📚 데이터베이스 준비
 
 ### 1) 데이터베이스 생성
 
@@ -43,7 +43,7 @@ PostgreSQL에 접속해 데이터베이스를 생성합니다.
 
 
 
-## 3. 서버 실행
+## 🏁 서버 실행
 
 ```bash
 ./gradlew bootRun
@@ -59,20 +59,21 @@ curl http://localhost:8080/actuator/health
 
 
 
-## 4. 테스트
+## 🧪 테스트
 
 ```bash
 ./gradlew test
 ```
 
-> **실행 전 Docker가 켜져 있어야 합니다.** 테스트는 Testcontainers로 실제 PostgreSQL 컨테이너를 띄워 검증합니다.
+> **실행 전 Docker가 켜져 있어야 합니다.** 
+> 테스트는 Testcontainers로 실제 PostgreSQL 컨테이너를 띄워 검증합니다.
 
 - 테스트가 끝나면 커버리지 리포트가 자동 생성됩니다.
 - 리포트 위치: `build/reports/jacoco/test/html/index.html` (브라우저로 열어 확인)
 
 
 
-## 5. 빌드
+## 💡 빌드
 
 ```bash
 ./gradlew build
