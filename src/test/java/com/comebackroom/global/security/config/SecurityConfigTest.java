@@ -60,6 +60,16 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    @ParameterizedTest(name = "명세에 없는 {0}은 인증 없이는 접근할 수 없다")
+    @ValueSource(strings = {
+            "/api/v1/auth/email/unexpected",
+            "/api/v1/auth/password/unexpected"
+    })
+    void rejectUndeclaredAuthPostEndpointWithoutAuthentication(String endpoint) throws Exception {
+        mockMvc.perform(post(endpoint))
+                .andExpect(status().isUnauthorized());
+    }
+
     @Test
     @DisplayName("Google OAuth2 시작 경로는 인증 없이 접근할 수 있다")
     void permitGoogleOAuth2Endpoint() throws Exception {

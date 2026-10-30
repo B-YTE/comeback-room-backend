@@ -16,6 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.HttpStatusAccessDeniedHandler;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Duration;
@@ -30,15 +31,17 @@ public class SecurityConfig {
             "/api/v1/auth/sign-up",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
-            "/api/v1/auth/email/**",
+            "/api/v1/auth/email/send",
+            "/api/v1/auth/email/verify",
             "/api/v1/auth/find-id",
-            "/api/v1/auth/password/**"
+            "/api/v1/auth/password/reset-request",
+            "/api/v1/auth/password/reset"
     };
 
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            UrlBasedCorsConfigurationSource corsConfigurationSource
+            CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -64,7 +67,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public UrlBasedCorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
+    public CorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
