@@ -1,5 +1,6 @@
 package com.comebackroom.global.security.config;
 
+import com.comebackroom.global.security.support.WithMockMember;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,7 +12,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -106,7 +106,7 @@ class SecurityConfigTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockMember(memberId = 1L)
     @DisplayName("인증된 사용자는 보호 경로에 접근할 수 있다")
     void permitProtectedEndpointWithAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/profiles/me"))
