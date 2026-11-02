@@ -5,8 +5,8 @@ import java.security.Principal;
 public record MemberPrincipal(Long memberId) implements Principal {
 
     public MemberPrincipal {
-        if (memberId == null) {
-            throw new IllegalArgumentException("memberId 값은 필수입니다.");
+        if (memberId == null || memberId <= 0) {
+            throw new IllegalArgumentException("memberId 값은 1 이상이어야 합니다.");
         }
     }
 
