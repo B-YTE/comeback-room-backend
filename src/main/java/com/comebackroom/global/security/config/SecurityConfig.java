@@ -15,12 +15,19 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.DispatcherTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
@@ -28,7 +35,7 @@ import java.util.List;
 @EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
-    private static final String[] PUBLIC_POST_ENDPOINTS = {
+    private static final String[] PUBLIC_AUTH_POST_ENDPOINTS = {
             "/api/v1/auth/sign-up",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
@@ -38,12 +45,14 @@ public class SecurityConfig {
             "/api/v1/auth/password/reset-request",
             "/api/v1/auth/password/reset"
     };
+    private static final RequestMatcher PUBLIC_ENDPOINTS = createPublicEndpointMatcher();
 
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CorsConfigurationSource corsConfigurationSource,
             JwtDecoder jwtDecoder,
+            BearerTokenResolver bearerTokenResolver,
             MemberJwtAuthenticationConverter memberJwtAuthenticationConverter,
             SecurityAuthenticationEntryPoint authenticationEntryPoint,
             SecurityAccessDeniedHandler accessDeniedHandler
@@ -61,20 +70,25 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(bearerTokenResolver)
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder)
                                 .jwtAuthenticationConverter(memberJwtAuthenticationConverter)))
                 .authorizeHttpRequests(authorize -> authorize
-                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_POST_ENDPOINTS).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/oauth2/authorization/google").permitAll()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated());
 
         return http.build();
+    }
+
+    @Bean
+    public BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver defaultBearerTokenResolver = new DefaultBearerTokenResolver();
+        return request -> PUBLIC_ENDPOINTS.matches(request)
+                ? null
+                : defaultBearerTokenResolver.resolve(request);
     }
 
     @Bean
@@ -95,5 +109,23 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private static RequestMatcher createPublicEndpointMatcher() {
+        List<RequestMatcher> requestMatcherList = new ArrayList<>();
+        requestMatcherList.add(new DispatcherTypeRequestMatcher(DispatcherType.ERROR));
+        requestMatcherList.add(PathPatternRequestMatcher.pathPattern(HttpMethod.OPTIONS, "/**"));
+        requestMatcherList.add(PathPatternRequestMatcher.pathPattern("/actuator/health"));
+        requestMatcherList.add(PathPatternRequestMatcher.pathPattern("/actuator/health/**"));
+        requestMatcherList.add(PathPatternRequestMatcher.pathPattern(
+                HttpMethod.GET,
+                "/api/v1/oauth2/authorization/google"
+        ));
+
+        for (String endpoint : PUBLIC_AUTH_POST_ENDPOINTS) {
+            requestMatcherList.add(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, endpoint));
+        }
+
+        return new OrRequestMatcher(requestMatcherList);
     }
 }

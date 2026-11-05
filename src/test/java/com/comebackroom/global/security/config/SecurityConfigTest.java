@@ -108,6 +108,14 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    @DisplayName("공개 인증 경로에서는 잘못된 Bearer Token을 무시한다")
+    void ignoreInvalidBearerTokenOnPublicAuthEndpoint() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isOk());
+    }
+
     @ParameterizedTest(name = "명세에 없는 {0}은 인증 없이는 접근할 수 없다")
     @ValueSource(strings = {
             "/api/v1/auth/email/unexpected",
