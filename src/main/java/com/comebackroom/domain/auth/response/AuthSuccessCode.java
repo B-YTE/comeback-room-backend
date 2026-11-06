@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum AuthSuccessCode implements SuccessCode {
 
-    LOGIN_SUCCESS(HttpStatus.OK, "로그인에 성공했습니다.");
+    LOGIN_SUCCESS(HttpStatus.OK, "로그인에 성공했습니다."),
+    TOKEN_REFRESH_SUCCESS(HttpStatus.OK, "토큰이 재발급되었습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

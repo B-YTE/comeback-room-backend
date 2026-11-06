@@ -1,8 +1,9 @@
 package com.comebackroom.domain.auth.controller;
 
-import com.comebackroom.domain.auth.dto.LoginTokenResult;
+import com.comebackroom.domain.auth.dto.IssuedTokenResult;
 import com.comebackroom.domain.auth.dto.request.LoginRequest;
 import com.comebackroom.domain.auth.dto.response.LoginResponse;
+import com.comebackroom.domain.auth.dto.response.TokenRefreshResponse;
 import com.comebackroom.domain.auth.response.AuthSuccessCode;
 import com.comebackroom.domain.auth.service.AuthService;
 import com.comebackroom.global.response.ApiResponse;
@@ -11,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,15 +31,36 @@ public class AuthController {
             @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
-        LoginTokenResult loginTokenResult = authService.login(request);
-        response.addHeader(
-                HttpHeaders.SET_COOKIE,
-                refreshTokenCookieProvider.createCookie(loginTokenResult.refreshToken()).toString()
-        );
+        IssuedTokenResult issuedTokenResult = authService.login(request);
+        addRefreshTokenCookie(response, issuedTokenResult.refreshToken());
 
         return ApiResponse.success(
                 AuthSuccessCode.LOGIN_SUCCESS,
-                new LoginResponse(loginTokenResult.accessToken())
+                new LoginResponse(issuedTokenResult.accessToken())
+        );
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<TokenRefreshResponse>> refresh(
+            @CookieValue(
+                    name = "${app.refresh-token.cookie-name}",
+                    required = false
+            ) String refreshToken,
+            HttpServletResponse response
+    ) {
+        IssuedTokenResult issuedTokenResult = authService.refresh(refreshToken);
+        addRefreshTokenCookie(response, issuedTokenResult.refreshToken());
+
+        return ApiResponse.success(
+                AuthSuccessCode.TOKEN_REFRESH_SUCCESS,
+                new TokenRefreshResponse(issuedTokenResult.accessToken())
+        );
+    }
+
+    private void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        response.addHeader(
+                HttpHeaders.SET_COOKIE,
+                refreshTokenCookieProvider.createCookie(refreshToken).toString()
         );
     }
 }

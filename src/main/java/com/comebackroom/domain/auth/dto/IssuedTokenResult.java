@@ -1,11 +1,11 @@
 package com.comebackroom.domain.auth.dto;
 
-public final class LoginTokenResult {
+public final class IssuedTokenResult {
 
     private final String accessToken;
     private final String refreshToken;
 
-    public LoginTokenResult(String accessToken, String refreshToken) {
+    public IssuedTokenResult(String accessToken, String refreshToken) {
         this.accessToken = requireToken(accessToken, "Access Token");
         this.refreshToken = requireToken(refreshToken, "Refresh Token");
     }

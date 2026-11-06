@@ -1,6 +1,6 @@
 package com.comebackroom.domain.auth.service;
 
-import com.comebackroom.domain.auth.dto.LoginTokenResult;
+import com.comebackroom.domain.auth.dto.IssuedTokenResult;
 import com.comebackroom.domain.auth.dto.request.LoginRequest;
 import com.comebackroom.domain.auth.entity.RefreshToken;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
@@ -41,25 +41,25 @@ public class AuthService {
     private final Clock clock;
 
     @Transactional
-    public LoginTokenResult login(LoginRequest request) {
+    public IssuedTokenResult login(LoginRequest request) {
         Member member = getAuthenticatedLocalMember(request);
-
-        String accessToken = jwtTokenProvider.createAccessToken(member.getId());
-        String refreshToken = refreshTokenGenerator.generateToken();
-        String refreshTokenHash = refreshTokenHasher.hashToken(refreshToken);
-        LocalDateTime expiresAt = LocalDateTime.ofInstant(
-                clock.instant().plus(refreshTokenProperties.expiration()),
-                APPLICATION_ZONE_ID
-        );
-
-        refreshTokenRepository.save(RefreshToken.create(
-                member,
-                refreshTokenHash,
-                expiresAt
-        ));
+        IssuedTokenResult issuedTokenResult = issueTokens(member);
 
         log.info("자체 로그인 성공 memberId={}", member.getId());
-        return new LoginTokenResult(accessToken, refreshToken);
+        return issuedTokenResult;
+    }
+
+    @Transactional
+    public IssuedTokenResult refresh(String rawRefreshToken) {
+        RefreshToken refreshToken = getValidRefreshToken(rawRefreshToken);
+        Member member = refreshToken.getMember();
+
+        refreshTokenRepository.delete(refreshToken);
+        refreshTokenRepository.flush();
+
+        IssuedTokenResult issuedTokenResult = issueTokens(member);
+        log.info("토큰 재발급 성공 memberId={}", member.getId());
+        return issuedTokenResult;
     }
 
     private Member getAuthenticatedLocalMember(LoginRequest request) {
@@ -79,5 +79,41 @@ public class AuthService {
         }
 
         return member;
+    }
+
+    private RefreshToken getValidRefreshToken(String rawRefreshToken) {
+        if (!StringUtils.hasText(rawRefreshToken)) {
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        String refreshTokenHash = refreshTokenHasher.hashToken(rawRefreshToken);
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByTokenHashForUpdate(refreshTokenHash)
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+
+        if (!refreshToken.getExpiresAt().isAfter(currentDateTime())) {
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        return refreshToken;
+    }
+
+    private IssuedTokenResult issueTokens(Member member) {
+        String accessToken = jwtTokenProvider.createAccessToken(member.getId());
+        String refreshToken = refreshTokenGenerator.generateToken();
+        String refreshTokenHash = refreshTokenHasher.hashToken(refreshToken);
+        LocalDateTime expiresAt = currentDateTime().plus(refreshTokenProperties.expiration());
+
+        refreshTokenRepository.save(RefreshToken.create(
+                member,
+                refreshTokenHash,
+                expiresAt
+        ));
+
+        return new IssuedTokenResult(accessToken, refreshToken);
+    }
+
+    private LocalDateTime currentDateTime() {
+        return LocalDateTime.ofInstant(clock.instant(), APPLICATION_ZONE_ID);
     }
 }

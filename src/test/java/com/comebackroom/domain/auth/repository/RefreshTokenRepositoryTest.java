@@ -73,6 +73,19 @@ class RefreshTokenRepositoryTest {
     }
 
     @Test
+    @DisplayName("토큰 회전을 위해 Refresh Token을 쓰기 잠금으로 조회한다")
+    void findByTokenHashForUpdate() {
+        refreshTokenRepository.saveAndFlush(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
+        entityManager.clear();
+
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByTokenHashForUpdate(TOKEN_HASH)
+                .orElseThrow();
+
+        assertThat(refreshToken.getMember().getId()).isEqualTo(member.getId());
+    }
+
+    @Test
     @DisplayName("한 회원이 여러 Refresh Token을 저장할 수 있다")
     void saveMultipleRefreshTokensForMember() {
         refreshTokenRepository.save(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
