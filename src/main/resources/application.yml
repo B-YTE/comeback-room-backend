@@ -25,3 +25,9 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}
+  refresh-token:
+    expiration: ${REFRESH_TOKEN_EXPIRATION:14d}
+    cookie-name: refreshToken
+    cookie-path: /api/v1/auth
+    cookie-secure: ${REFRESH_TOKEN_COOKIE_SECURE:false}
+    cookie-same-site: ${REFRESH_TOKEN_COOKIE_SAME_SITE:Lax}
