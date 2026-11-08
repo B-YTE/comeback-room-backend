@@ -9,6 +9,7 @@ import com.comebackroom.domain.auth.service.AuthService;
 import com.comebackroom.global.response.ApiResponse;
 import com.comebackroom.global.security.refresh.RefreshTokenCookieProvider;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +29,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
-            @RequestBody LoginRequest request,
+            @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
         IssuedTokenResult issuedTokenResult = authService.login(request);

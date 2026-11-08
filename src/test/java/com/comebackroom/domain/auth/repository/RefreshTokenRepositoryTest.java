@@ -58,7 +58,7 @@ class RefreshTokenRepositoryTest {
     @Test
     @DisplayName("토큰 해시로 Refresh Token과 회원을 조회한다")
     void findByTokenHash() {
-        refreshTokenRepository.saveAndFlush(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
+        refreshTokenRepository.saveAndFlush(RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT));
         entityManager.clear();
 
         RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(TOKEN_HASH)
@@ -74,12 +74,12 @@ class RefreshTokenRepositoryTest {
 
     @Test
     @DisplayName("토큰 회전을 위해 Refresh Token을 쓰기 잠금으로 조회한다")
-    void findByTokenHashForUpdate() {
-        refreshTokenRepository.saveAndFlush(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
+    void findWithLockByTokenHash() {
+        refreshTokenRepository.saveAndFlush(RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT));
         entityManager.clear();
 
         RefreshToken refreshToken = refreshTokenRepository
-                .findByTokenHashForUpdate(TOKEN_HASH)
+                .findWithLockByTokenHash(TOKEN_HASH)
                 .orElseThrow();
 
         assertThat(refreshToken.getMember().getId()).isEqualTo(member.getId());
@@ -88,8 +88,8 @@ class RefreshTokenRepositoryTest {
     @Test
     @DisplayName("한 회원이 여러 Refresh Token을 저장할 수 있다")
     void saveMultipleRefreshTokensForMember() {
-        refreshTokenRepository.save(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
-        refreshTokenRepository.save(RefreshToken.create(member, SECOND_TOKEN_HASH, EXPIRES_AT));
+        refreshTokenRepository.save(RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT));
+        refreshTokenRepository.save(RefreshToken.issueFor(member, SECOND_TOKEN_HASH, EXPIRES_AT));
         refreshTokenRepository.flush();
 
         assertAll(
@@ -102,11 +102,11 @@ class RefreshTokenRepositoryTest {
     @Test
     @DisplayName("동일한 토큰 해시는 중복 저장할 수 없다")
     void rejectDuplicateTokenHash() {
-        refreshTokenRepository.saveAndFlush(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
+        refreshTokenRepository.saveAndFlush(RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT));
 
         assertThatThrownBy(
                 () -> refreshTokenRepository.saveAndFlush(
-                        RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT.plusDays(1))
+                        RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT.plusDays(1))
                 )
         ).isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -132,7 +132,7 @@ class RefreshTokenRepositoryTest {
     @Test
     @DisplayName("회원이 삭제되면 해당 회원의 Refresh Token도 삭제된다")
     void deleteRefreshTokensWhenMemberIsDeleted() {
-        refreshTokenRepository.saveAndFlush(RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT));
+        refreshTokenRepository.saveAndFlush(RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT));
         entityManager.clear();
 
         memberRepository.deleteById(member.getId());

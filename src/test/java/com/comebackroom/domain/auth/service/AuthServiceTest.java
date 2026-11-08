@@ -129,14 +129,14 @@ class AuthServiceTest {
     @Test
     @DisplayName("유효한 Refresh Token을 새 Access Token과 Refresh Token으로 교체한다")
     void refresh() {
-        RefreshToken savedRefreshToken = RefreshToken.create(
+        RefreshToken savedRefreshToken = RefreshToken.issueFor(
                 member,
                 OLD_REFRESH_TOKEN_HASH,
                 LocalDateTime.of(2026, 11, 7, 12, 0)
         );
         given(refreshTokenHasher.hashToken(OLD_REFRESH_TOKEN))
                 .willReturn(OLD_REFRESH_TOKEN_HASH);
-        given(refreshTokenRepository.findByTokenHashForUpdate(OLD_REFRESH_TOKEN_HASH))
+        given(refreshTokenRepository.findWithLockByTokenHash(OLD_REFRESH_TOKEN_HASH))
                 .willReturn(Optional.of(savedRefreshToken));
         given(jwtTokenProvider.createAccessToken(MEMBER_ID)).willReturn(ACCESS_TOKEN);
         given(refreshTokenGenerator.generateToken()).willReturn(NEW_REFRESH_TOKEN);
@@ -171,7 +171,7 @@ class AuthServiceTest {
 
         verify(refreshTokenHasher, never()).hashToken(org.mockito.ArgumentMatchers.any());
         verify(refreshTokenRepository, never())
-                .findByTokenHashForUpdate(org.mockito.ArgumentMatchers.any());
+                .findWithLockByTokenHash(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -179,7 +179,7 @@ class AuthServiceTest {
     void failToRefreshWithUnknownRefreshToken() {
         given(refreshTokenHasher.hashToken(OLD_REFRESH_TOKEN))
                 .willReturn(OLD_REFRESH_TOKEN_HASH);
-        given(refreshTokenRepository.findByTokenHashForUpdate(OLD_REFRESH_TOKEN_HASH))
+        given(refreshTokenRepository.findWithLockByTokenHash(OLD_REFRESH_TOKEN_HASH))
                 .willReturn(Optional.empty());
 
         assertInvalidRefreshToken(() -> authService.refresh(OLD_REFRESH_TOKEN));
@@ -191,14 +191,14 @@ class AuthServiceTest {
     @Test
     @DisplayName("만료시각과 현재시각이 같으면 만료된 Refresh Token으로 처리한다")
     void failToRefreshWithExpiredRefreshToken() {
-        RefreshToken expiredRefreshToken = RefreshToken.create(
+        RefreshToken expiredRefreshToken = RefreshToken.issueFor(
                 member,
                 OLD_REFRESH_TOKEN_HASH,
                 LocalDateTime.of(2026, 11, 6, 12, 0)
         );
         given(refreshTokenHasher.hashToken(OLD_REFRESH_TOKEN))
                 .willReturn(OLD_REFRESH_TOKEN_HASH);
-        given(refreshTokenRepository.findByTokenHashForUpdate(OLD_REFRESH_TOKEN_HASH))
+        given(refreshTokenRepository.findWithLockByTokenHash(OLD_REFRESH_TOKEN_HASH))
                 .willReturn(Optional.of(expiredRefreshToken));
 
         assertInvalidRefreshToken(() -> authService.refresh(OLD_REFRESH_TOKEN));

@@ -54,7 +54,7 @@ public class RefreshToken extends BaseCreatedEntity {
     )
     private Member member;
 
-    @Column(name = "token_hash", length = TOKEN_HASH_LENGTH, nullable = false, unique = true)
+    @Column(name = "token_hash", length = TOKEN_HASH_LENGTH, nullable = false)
     private String tokenHash;
 
     @Column(name = "expires_at", nullable = false)
@@ -70,7 +70,7 @@ public class RefreshToken extends BaseCreatedEntity {
         this.expiresAt = expiresAt;
     }
 
-    public static RefreshToken create(
+    public static RefreshToken issueFor(
             Member member,
             String tokenHash,
             LocalDateTime expiresAt

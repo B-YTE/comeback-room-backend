@@ -1,21 +1,18 @@
 package com.comebackroom.domain.auth.dto;
 
-public final class IssuedTokenResult {
+public record IssuedTokenResult(
+        String accessToken,
+        String refreshToken
+) {
 
-    private final String accessToken;
-    private final String refreshToken;
-
-    public IssuedTokenResult(String accessToken, String refreshToken) {
-        this.accessToken = requireToken(accessToken, "Access Token");
-        this.refreshToken = requireToken(refreshToken, "Refresh Token");
+    public IssuedTokenResult {
+        accessToken = requireToken(accessToken, "Access Token");
+        refreshToken = requireToken(refreshToken, "Refresh Token");
     }
 
-    public String accessToken() {
-        return accessToken;
-    }
-
-    public String refreshToken() {
-        return refreshToken;
+    @Override
+    public String toString() {
+        return "IssuedTokenResult[accessToken=***, refreshToken=***]";
     }
 
     private static String requireToken(String token, String tokenName) {

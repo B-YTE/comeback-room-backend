@@ -159,4 +159,27 @@ class AuthControllerTest {
 
         verify(refreshTokenCookieProvider, never()).createCookie(any());
     }
+
+    @Test
+    @DisplayName("아이디 또는 비밀번호가 비어 있으면 공통 400 오류 응답을 반환한다")
+    void failToLoginWithBlankCredentials() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginId": " ",
+                                  "password": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.message").value("잘못된 입력값입니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/login"))
+                .andExpect(jsonPath("$.timestamp").exists());
+
+        verify(authService, never()).login(any(LoginRequest.class));
+        verify(refreshTokenCookieProvider, never()).createCookie(any());
+    }
 }

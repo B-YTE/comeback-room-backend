@@ -24,8 +24,8 @@ class RefreshTokenTest {
 
     @Test
     @DisplayName("회원과 토큰 해시 및 만료시간으로 Refresh Token을 생성한다")
-    void createRefreshToken() {
-        RefreshToken refreshToken = RefreshToken.create(member, TOKEN_HASH, EXPIRES_AT);
+    void issueRefreshToken() {
+        RefreshToken refreshToken = RefreshToken.issueFor(member, TOKEN_HASH, EXPIRES_AT);
 
         assertAll(
                 () -> assertThat(refreshToken.getMember()).isEqualTo(member),
@@ -39,13 +39,13 @@ class RefreshTokenTest {
     void failToCreateRefreshTokenWithoutRequiredValue() {
         assertAll(
                 () -> assertThatThrownBy(
-                        () -> RefreshToken.create(null, TOKEN_HASH, EXPIRES_AT)
+                        () -> RefreshToken.issueFor(null, TOKEN_HASH, EXPIRES_AT)
                 ).isInstanceOf(IllegalArgumentException.class),
                 () -> assertThatThrownBy(
-                        () -> RefreshToken.create(member, " ", EXPIRES_AT)
+                        () -> RefreshToken.issueFor(member, " ", EXPIRES_AT)
                 ).isInstanceOf(IllegalArgumentException.class),
                 () -> assertThatThrownBy(
-                        () -> RefreshToken.create(member, TOKEN_HASH, null)
+                        () -> RefreshToken.issueFor(member, TOKEN_HASH, null)
                 ).isInstanceOf(IllegalArgumentException.class)
         );
     }
@@ -54,7 +54,7 @@ class RefreshTokenTest {
     @DisplayName("SHA-256 해시 길이가 아니면 Refresh Token을 생성할 수 없다")
     void failToCreateRefreshTokenWithInvalidHashLength() {
         assertThatThrownBy(
-                () -> RefreshToken.create(member, "short-hash", EXPIRES_AT)
+                () -> RefreshToken.issueFor(member, "short-hash", EXPIRES_AT)
         ).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("tokenHash는 64자여야 합니다.");
     }

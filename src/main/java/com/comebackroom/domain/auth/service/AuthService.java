@@ -88,7 +88,7 @@ public class AuthService {
 
         String refreshTokenHash = refreshTokenHasher.hashToken(rawRefreshToken);
         RefreshToken refreshToken = refreshTokenRepository
-                .findByTokenHashForUpdate(refreshTokenHash)
+                .findWithLockByTokenHash(refreshTokenHash)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
         if (!refreshToken.getExpiresAt().isAfter(currentDateTime())) {
@@ -104,7 +104,7 @@ public class AuthService {
         String refreshTokenHash = refreshTokenHasher.hashToken(refreshToken);
         LocalDateTime expiresAt = currentDateTime().plus(refreshTokenProperties.expiration());
 
-        refreshTokenRepository.save(RefreshToken.create(
+        refreshTokenRepository.save(RefreshToken.issueFor(
                 member,
                 refreshTokenHash,
                 expiresAt
