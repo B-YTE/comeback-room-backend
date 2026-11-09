@@ -1,0 +1,13 @@
+.git
+.github
+.gradle
+.idea
+build
+docs
+src/test
+.env
+.env.*
+AGENTS.md
+cookies.txt
+*.iml
+*.log

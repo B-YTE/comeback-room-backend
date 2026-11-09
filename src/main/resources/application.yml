@@ -8,14 +8,14 @@ spring:
     hibernate:
       ddl-auto: validate
 
-  management:
-    endpoints:
-      web:
-        exposure:
-          include: health
-    endpoint:
-      health:
-        show-details: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 logging:
   pattern:

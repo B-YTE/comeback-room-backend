@@ -49,6 +49,10 @@ tasks.named('test') {
 	finalizedBy jacocoTestReport // 테스트 종료 시 리포트 자동 생성
 }
 
+tasks.named('bootJar') {
+	archiveFileName = 'app.jar'
+}
+
 jacocoTestReport {
 	dependsOn tasks.named('test')
 
