@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: comeback-room-backend-dev
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: develop
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod,render
+      - key: DATABASE_URL
+        fromDatabase:
+          name: comeback-room-postgres-dev
+          property: connectionString
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: comeback-room-postgres-dev
+    plan: free
+    region: singapore
+    databaseName: comebackroom
+    user: comebackroom
+    postgresMajorVersion: "17"
