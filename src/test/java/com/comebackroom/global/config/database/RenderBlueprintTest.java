@@ -64,8 +64,8 @@ class RenderBlueprintTest {
     }
 
     @Test
-    @DisplayName("Web Service와 PostgreSQL을 동일한 리전에 구성한다")
-    void configureServicesInSameRegion() {
+    @DisplayName("Web Service와 PostgreSQL을 동일한 리전에 구성하고 DB 외부 접근을 차단한다")
+    void configureServicesInSameRegionAndBlockExternalDatabaseAccess() {
         Map<String, Object> service = firstMap(blueprint, "services");
         Map<String, Object> database = firstMap(blueprint, "databases");
 
@@ -73,7 +73,8 @@ class RenderBlueprintTest {
                 () -> assertThat(service.get("region")).isEqualTo("singapore"),
                 () -> assertThat(database.get("region")).isEqualTo(service.get("region")),
                 () -> assertThat(database.get("plan")).isEqualTo("free"),
-                () -> assertThat(database.get("postgresMajorVersion")).isEqualTo("17")
+                () -> assertThat(database.get("postgresMajorVersion")).isEqualTo("17"),
+                () -> assertThat(database.get("ipAllowList")).isEqualTo(List.of())
         );
     }
 

@@ -28,3 +28,4 @@ databases:
     databaseName: comebackroom
     user: comebackroom
     postgresMajorVersion: "17"
+    ipAllowList: []
