@@ -11,11 +11,27 @@ services:
     autoDeployTrigger: checksPass
     envVars:
       - key: SPRING_PROFILES_ACTIVE
-        value: prod,render
-      - key: DATABASE_URL
+        value: dev,render
+      - key: DB_HOST
         fromDatabase:
           name: comeback-room-postgres-dev
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: comeback-room-postgres-dev
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: comeback-room-postgres-dev
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: comeback-room-postgres-dev
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: comeback-room-postgres-dev
+          property: password
       - key: CORS_ALLOWED_ORIGINS
         sync: false
       - key: JWT_SECRET
@@ -28,4 +44,3 @@ databases:
     databaseName: comebackroom
     user: comebackroom
     postgresMajorVersion: "17"
-    ipAllowList: []

@@ -31,13 +31,16 @@ class RenderBlueprintTest {
     @DisplayName("develop 브랜치의 Docker 서비스를 CI 통과 후 배포한다")
     void configureWebServiceDeployment() {
         Map<String, Object> service = firstMap(blueprint, "services");
+        List<Map<String, Object>> environmentVariables = mapList(service, "envVars");
+        Map<String, Object> activeProfiles = findByKey(environmentVariables, "SPRING_PROFILES_ACTIVE");
 
         assertAll(
                 () -> assertThat(service.get("type")).isEqualTo("web"),
                 () -> assertThat(service.get("runtime")).isEqualTo("docker"),
                 () -> assertThat(service.get("branch")).isEqualTo("develop"),
                 () -> assertThat(service.get("autoDeployTrigger")).isEqualTo("checksPass"),
-                () -> assertThat(service.get("healthCheckPath")).isEqualTo("/actuator/health")
+                () -> assertThat(service.get("healthCheckPath")).isEqualTo("/actuator/health"),
+                () -> assertThat(activeProfiles.get("value")).isEqualTo("dev,render")
         );
     }
 
@@ -46,14 +49,16 @@ class RenderBlueprintTest {
     void configureSecureEnvironmentReferences() {
         Map<String, Object> service = firstMap(blueprint, "services");
         List<Map<String, Object>> environmentVariables = mapList(service, "envVars");
-        Map<String, Object> databaseUrl = findByKey(environmentVariables, "DATABASE_URL");
         Map<String, Object> jwtSecret = findByKey(environmentVariables, "JWT_SECRET");
         Map<String, Object> corsOrigins = findByKey(environmentVariables, "CORS_ALLOWED_ORIGINS");
 
+        assertDatabaseReference(environmentVariables, "DB_HOST", "host");
+        assertDatabaseReference(environmentVariables, "DB_PORT", "port");
+        assertDatabaseReference(environmentVariables, "DB_NAME", "database");
+        assertDatabaseReference(environmentVariables, "DB_USER", "user");
+        assertDatabaseReference(environmentVariables, "DB_PASSWORD", "password");
+
         assertAll(
-                () -> assertThat(map(databaseUrl, "fromDatabase"))
-                        .containsEntry("name", "comeback-room-postgres-dev")
-                        .containsEntry("property", "connectionString"),
                 () -> assertThat(jwtSecret)
                         .containsEntry("generateValue", true)
                         .doesNotContainKey("value"),
@@ -64,8 +69,8 @@ class RenderBlueprintTest {
     }
 
     @Test
-    @DisplayName("Web Service와 PostgreSQL을 동일한 리전에 구성하고 DB 외부 접근을 차단한다")
-    void configureServicesInSameRegionAndBlockExternalDatabaseAccess() {
+    @DisplayName("개발 Web Service와 외부 확인 가능한 PostgreSQL을 동일한 리전에 구성한다")
+    void configureServicesInSameRegionAndAllowDevelopmentDatabaseAccess() {
         Map<String, Object> service = firstMap(blueprint, "services");
         Map<String, Object> database = firstMap(blueprint, "databases");
 
@@ -74,8 +79,18 @@ class RenderBlueprintTest {
                 () -> assertThat(database.get("region")).isEqualTo(service.get("region")),
                 () -> assertThat(database.get("plan")).isEqualTo("free"),
                 () -> assertThat(database.get("postgresMajorVersion")).isEqualTo("17"),
-                () -> assertThat(database.get("ipAllowList")).isEqualTo(List.of())
+                () -> assertThat(database).doesNotContainKey("ipAllowList")
         );
+    }
+
+    private static void assertDatabaseReference(
+            List<Map<String, Object>> environmentVariables,
+            String key,
+            String property
+    ) {
+        assertThat(map(findByKey(environmentVariables, key), "fromDatabase"))
+                .containsEntry("name", "comeback-room-postgres-dev")
+                .containsEntry("property", property);
     }
 
     private static Map<String, Object> firstMap(Map<String, Object> source, String key) {
