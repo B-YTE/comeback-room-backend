@@ -25,6 +25,19 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}
+  email-verification:
+    code-expiration: ${EMAIL_VERIFICATION_CODE_EXPIRATION:5m}
+    resend-cooldown: ${EMAIL_VERIFICATION_RESEND_COOLDOWN:60s}
+    request-limit-window: ${EMAIL_VERIFICATION_REQUEST_LIMIT_WINDOW:1h}
+    max-requests-per-window: ${EMAIL_VERIFICATION_MAX_REQUESTS:5}
+    max-verification-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
+    token-expiration: ${EMAIL_VERIFICATION_TOKEN_EXPIRATION:30m}
+    hash-secret: ${EMAIL_VERIFICATION_SECRET}
+  email:
+    delivery-mode: ${EMAIL_DELIVERY_MODE:console}
+    resend-base-url: ${RESEND_BASE_URL:https://api.resend.com}
+    resend-api-key: ${RESEND_API_KEY:}
+    from-address: ${EMAIL_FROM_ADDRESS:}
   refresh-token:
     expiration: ${REFRESH_TOKEN_EXPIRATION:14d}
     cookie-name: refreshToken
