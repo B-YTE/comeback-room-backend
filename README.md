@@ -27,6 +27,7 @@ COMEBACK ROOM은 아이돌 팬들이 공식 유튜브 영상을 함께 보며 �
 | Framework | Spring Boot 4.1.1 |
 | Database | PostgreSQL 17 |
 | Migration | Flyway |
+| Messaging | Apache Kafka |
 | Build | Gradle |
 | Test | JUnit 6, Testcontainers, JaCoCo |
 
@@ -71,6 +72,18 @@ curl http://localhost:8080/actuator/health
 # 기대 출력: {"status":"UP"}
 ```
 
+## 📨 Kafka
+
+`docker compose up -d` 시 PostgreSQL과 함께 Kafka가 실행됩니다.
+
+- 채팅, 리액션, 리포트의 내부 이벤트는 `room-activity` 토픽을 공유합니다.
+- 토픽은 서버 최초 실행 시 자동 생성됩니다.
+
+토픽 생성 확인:
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 --describe --topic room-activity
+```
 
 
 ## 🧪 테스트
