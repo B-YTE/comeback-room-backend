@@ -10,7 +10,7 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
-import tools.jackson.databind.ser.jdk.ByteArraySerializer;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
