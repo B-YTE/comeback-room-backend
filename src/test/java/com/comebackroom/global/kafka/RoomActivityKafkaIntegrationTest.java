@@ -1,17 +1,15 @@
 package com.comebackroom.global.kafka;
 
+import com.comebackroom.KafkaTestcontainersConfiguration;
 import com.comebackroom.TestcontainersConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.testcontainers.kafka.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
 import java.util.List;
@@ -22,19 +20,13 @@ import java.util.stream.IntStream;
 import static com.comebackroom.global.config.KafkaTopicConfig.ROOM_ACTIVITY_TOPIC;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, KafkaTestcontainersConfiguration.class})
 @SpringBootTest
 @DisplayName("room-activity 발행/수신")
 class RoomActivityKafkaIntegrationTest {
 
     @TestConfiguration(proxyBeanMethods = false)
-    static class KafkaTestConfiguration {
-
-        @Bean
-        @ServiceConnection
-        KafkaContainer kafkaContainer() {
-            return new KafkaContainer(DockerImageName.parse("apache/kafka:4.0.0"));
-        }
+    static class RecordingConsumerConfiguration {
 
         @Bean
         RecordingConsumer recordingConsumer() {
