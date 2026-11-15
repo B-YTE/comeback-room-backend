@@ -30,6 +30,15 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  redis:
+    image: redis:7
+    container_name: comebackroom-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
 volumes:
   postgres-data:
   kafka-data:
+  redis-data:
