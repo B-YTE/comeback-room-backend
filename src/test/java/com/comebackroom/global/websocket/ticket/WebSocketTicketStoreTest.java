@@ -1,4 +1,4 @@
-package com.comebackroom.global.websocket;
+package com.comebackroom.global.websocket.ticket;
 
 import org.junit.jupiter.api.*;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -49,9 +49,9 @@ public class WebSocketTicketStoreTest {
     @DisplayName("발급된 ticket으로 회원과 방 정보를 조회한다")
     void useTicket_returnsMemberAndRoom() {
         String ticket = ticketStore.issue(1L, 1L);
-        Optional<WebSocketTicketStore.TicketInfo> result = ticketStore.consume(ticket);
+        Optional<TicketInfo> result = ticketStore.consume(ticket);
 
-        assertThat(result).contains(new WebSocketTicketStore.TicketInfo(1L, 1L));
+        assertThat(result).contains(new TicketInfo(1L, 1L));
     }
 
     @Test

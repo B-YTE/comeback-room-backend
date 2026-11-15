@@ -1,4 +1,4 @@
-package com.comebackroom.global.websocket;
+package com.comebackroom.global.websocket.ticket;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,8 +16,6 @@ public class WebSocketTicketStore {
     private static final Duration TTL = Duration.ofSeconds(30);
 
     private final StringRedisTemplate redisTemplate;
-
-    public record TicketInfo(Long memberId, Long roomId) {}
 
     public String issue(Long memberId, Long roomId) {
         String ticket = generateTicket();
