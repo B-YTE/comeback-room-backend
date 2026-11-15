@@ -38,6 +38,8 @@ app:
     resend-base-url: ${RESEND_BASE_URL:https://api.resend.com}
     resend-api-key: ${RESEND_API_KEY:}
     from-address: ${EMAIL_FROM_ADDRESS:}
+    connect-timeout: ${EMAIL_CONNECT_TIMEOUT:3s}
+    read-timeout: ${EMAIL_READ_TIMEOUT:5s}
   refresh-token:
     expiration: ${REFRESH_TOKEN_EXPIRATION:14d}
     cookie-name: refreshToken

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,7 +19,9 @@ class EmailPropertiesTest {
                 EmailDeliveryMode.CONSOLE,
                 URI.create("https://api.resend.com"),
                 "",
-                ""
+                "",
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(5)
         )).doesNotThrowAnyException();
     }
 
@@ -29,7 +32,9 @@ class EmailPropertiesTest {
                 EmailDeliveryMode.RESEND,
                 URI.create("https://api.resend.com"),
                 "",
-                ""
+                "",
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(5)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Resend API Key는 필수입니다.");
     }
@@ -41,8 +46,24 @@ class EmailPropertiesTest {
                 EmailDeliveryMode.RESEND,
                 URI.create("http://api.resend.com"),
                 "api-key",
-                "auth@example.com"
+                "auth@example.com",
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(5)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Resend API Base URL은 HTTPS여야 합니다.");
+    }
+
+    @Test
+    @DisplayName("이메일 API 제한시간은 0보다 커야 한다")
+    void requirePositiveTimeouts() {
+        assertThatThrownBy(() -> new EmailProperties(
+                EmailDeliveryMode.RESEND,
+                URI.create("https://api.resend.com"),
+                "api-key",
+                "auth@example.com",
+                Duration.ZERO,
+                Duration.ofSeconds(5)
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("이메일 API 연결 제한시간은 0보다 커야 합니다.");
     }
 }

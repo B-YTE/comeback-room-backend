@@ -41,6 +41,8 @@ public class EmailVerificationService {
     public void sendCode(SendEmailVerificationCodeRequest request) {
         String email = normalizeEmail(request.email());
         EmailVerificationPurpose purpose = request.purpose();
+        emailVerificationRepository.acquireTransactionLock(email, purpose.name());
+
         LocalDateTime issuedAt = currentDateTime();
         String verificationCode = codeGenerator.generateCode();
         String codeHash = hasher.hashVerificationCode(email, purpose, verificationCode);

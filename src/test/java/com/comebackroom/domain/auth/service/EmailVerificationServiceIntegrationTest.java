@@ -16,13 +16,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.times;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -37,6 +48,9 @@ class EmailVerificationServiceIntegrationTest {
 
     @Autowired
     private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private EmailVerificationCodeGenerator codeGenerator;
@@ -85,6 +99,75 @@ class EmailVerificationServiceIntegrationTest {
                 EMAIL,
                 EmailVerificationPurpose.SIGN_UP
         )).isEmpty();
+    }
+
+    @Test
+    @DisplayName("최초 발급 요청이 동시에 들어오면 하나만 발급하고 나머지는 요청 제한으로 처리한다")
+    void serializeConcurrentFirstIssuance() throws Exception {
+        CountDownLatch deliveryStarted = new CountDownLatch(1);
+        CountDownLatch allowDeliveryCompletion = new CountDownLatch(1);
+        willAnswer(invocation -> {
+            deliveryStarted.countDown();
+            if (!allowDeliveryCompletion.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("이메일 발송 대기시간을 초과했습니다.");
+            }
+            return null;
+        }).given(emailSender).send(any());
+
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> firstRequest = submitSendRequest(executorService);
+            assertThat(deliveryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<Throwable> secondRequest = submitSendRequest(executorService);
+            waitUntilAdvisoryLockIsWaiting(Duration.ofSeconds(5));
+            allowDeliveryCompletion.countDown();
+
+            assertThat(firstRequest.get(5, TimeUnit.SECONDS)).isNull();
+            assertThat(secondRequest.get(5, TimeUnit.SECONDS))
+                    .isInstanceOfSatisfying(BusinessException.class, exception ->
+                            assertThat(exception.getErrorCode()).isEqualTo(
+                                    AuthErrorCode.EMAIL_REQUEST_LIMIT_EXCEEDED
+                            ));
+            assertThat(emailVerificationRepository.count()).isEqualTo(1);
+            then(emailSender).should(times(1)).send(any());
+        } finally {
+            allowDeliveryCompletion.countDown();
+            executorService.shutdownNow();
+        }
+    }
+
+    private Future<Throwable> submitSendRequest(ExecutorService executorService) {
+        return executorService.submit(() -> {
+            try {
+                emailVerificationService.sendCode(sendRequest());
+                return null;
+            } catch (Throwable throwable) {
+                return throwable;
+            }
+        });
+    }
+
+    private void waitUntilAdvisoryLockIsWaiting(Duration timeout)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (System.nanoTime() < deadline) {
+            Integer waitingTransactionCount = jdbcTemplate.queryForObject(
+                    """
+                            SELECT COUNT(*)
+                            FROM pg_stat_activity
+                            WHERE datname = current_database()
+                              AND wait_event_type = 'Lock'
+                              AND wait_event = 'advisory'
+                            """,
+                    Integer.class
+            );
+            if (waitingTransactionCount != null && waitingTransactionCount > 0) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("동시 요청이 advisory lock을 기다리지 않았습니다.");
     }
 
     private static SendEmailVerificationCodeRequest sendRequest() {
