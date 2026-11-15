@@ -19,7 +19,7 @@ public class RoomClosedActivityHandler implements RoomActivityHandler {
 
     @Override
     public void handle(RoomActivityMessage message) {
-        // TODO: 방 종료 시 리포트 생성
+        // TODO: roomId로 리포트 존재 여부 확인 후 리포트 생성
         log.debug("ROOM_CLOSED 처리기 호출: roomId={}, messageId={}", message.roomId(), message.messageId());
     }
 }

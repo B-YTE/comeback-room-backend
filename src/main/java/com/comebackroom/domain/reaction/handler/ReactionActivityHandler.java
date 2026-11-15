@@ -19,7 +19,7 @@ public class ReactionActivityHandler implements RoomActivityHandler {
 
     @Override
     public void handle(RoomActivityMessage message) {
-        // TODO: 리액션 저장 후 시청방에 전송
+        // TODO: messageId로 중복 확인 후 리액션 저장, 커밋 후 시청방에 전송
         log.debug("REACTION 처리기 호출: roomId={}, messageId={}", message.roomId(), message.messageId());
     }
 }

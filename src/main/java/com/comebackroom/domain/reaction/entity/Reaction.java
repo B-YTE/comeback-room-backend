@@ -20,6 +20,9 @@ public class Reaction extends BaseCreatedEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "message_id", length = 36, nullable = false, updatable = false)
+    private String messageId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
     private WatchingRoom room;
@@ -36,8 +39,9 @@ public class Reaction extends BaseCreatedEntity {
     private Integer videoPositionSeconds;
 
     @Builder
-    private Reaction(WatchingRoom room, Member member,
+    private Reaction(String messageId, WatchingRoom room, Member member,
                      ReactionType type, Integer videoPositionSeconds) {
+        this.messageId = messageId;
         this.room = room;
         this.member = member;
         this.type = type;
