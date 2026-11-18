@@ -77,6 +77,7 @@ curl http://localhost:8080/actuator/health
 `docker compose up -d` 시 PostgreSQL과 함께 Kafka가 실행됩니다.
 
 - 채팅, 리액션, 리포트의 내부 이벤트는 `room-activity` 토픽을 공유합니다.
+- 처리에 3번 실패한 메시지와 형식이 깨진 메시지는 `room-activity-dlt` 토픽에 보관됩니다.
 - 토픽은 서버 최초 실행 시 자동 생성됩니다.
 
 토픽 생성 확인:
