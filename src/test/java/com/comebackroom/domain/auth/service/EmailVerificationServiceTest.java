@@ -8,6 +8,7 @@ import com.comebackroom.domain.auth.entity.EmailVerification;
 import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.repository.EmailVerificationRepository;
+import com.comebackroom.domain.member.repository.MemberRepository;
 import com.comebackroom.global.email.EmailMessage;
 import com.comebackroom.global.email.EmailSender;
 import com.comebackroom.global.exception.BusinessException;
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -34,6 +37,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("이메일 인증 서비스")
@@ -53,6 +57,9 @@ class EmailVerificationServiceTest {
 
     @Mock
     private EmailVerificationRepository emailVerificationRepository;
+
+    @Mock
+    private MemberRepository memberRepository;
 
     @Mock
     private EmailVerificationCodeGenerator codeGenerator;
@@ -81,6 +88,7 @@ class EmailVerificationServiceTest {
         hasher = new EmailVerificationHasher(properties);
         emailVerificationService = new EmailVerificationService(
                 emailVerificationRepository,
+                memberRepository,
                 codeGenerator,
                 tokenGenerator,
                 hasher,
@@ -135,6 +143,42 @@ class EmailVerificationServiceTest {
         InOrder callOrder = inOrder(emailVerificationRepository, emailSender);
         callOrder.verify(emailVerificationRepository).saveAndFlush(savedVerification);
         callOrder.verify(emailSender).send(sentMessage);
+    }
+
+    @Test
+    @DisplayName("회원가입 인증은 정규화한 이메일이 이미 가입되어 있으면 발급 전에 거절한다")
+    void rejectSignUpForRegisteredEmail() {
+        given(memberRepository.existsByEmailIgnoreCase(EMAIL)).willReturn(true);
+
+        assertErrorCode(
+                () -> emailVerificationService.sendCode(new SendEmailVerificationCodeRequest(
+                        " ZIN@EXAMPLE.COM ",
+                        EmailVerificationPurpose.SIGN_UP
+                )),
+                AuthErrorCode.DUPLICATE_EMAIL
+        );
+
+        verify(memberRepository).existsByEmailIgnoreCase(EMAIL);
+        verifyNoInteractions(emailVerificationRepository, codeGenerator, emailSender);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = EmailVerificationPurpose.class, names = {"FIND_ID", "PASSWORD_RESET"})
+    @DisplayName("계정 복구 목적의 발급에는 회원가입용 이메일 중복 검사를 적용하지 않는다")
+    void allowRecoveryPurposes(EmailVerificationPurpose purpose) {
+        given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
+        given(emailVerificationRepository.findWithLockByEmailAndPurpose(EMAIL, purpose))
+                .willReturn(Optional.empty());
+
+        emailVerificationService.sendCode(new SendEmailVerificationCodeRequest(EMAIL, purpose));
+
+        ArgumentCaptor<EmailVerification> verificationCaptor = ArgumentCaptor.forClass(
+                EmailVerification.class
+        );
+        verify(emailVerificationRepository).saveAndFlush(verificationCaptor.capture());
+        assertThat(verificationCaptor.getValue().getPurpose()).isEqualTo(purpose);
+        verify(emailSender).send(org.mockito.ArgumentMatchers.any());
+        verifyNoInteractions(memberRepository);
     }
 
     @Test

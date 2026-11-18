@@ -8,6 +8,7 @@ import com.comebackroom.domain.auth.entity.EmailVerification;
 import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.repository.EmailVerificationRepository;
+import com.comebackroom.domain.member.repository.MemberRepository;
 import com.comebackroom.global.email.EmailMessage;
 import com.comebackroom.global.email.EmailSender;
 import com.comebackroom.global.exception.BusinessException;
@@ -30,6 +31,7 @@ public class EmailVerificationService {
     private static final String EMAIL_SUBJECT = "[Comeback Room] 이메일 인증코드";
 
     private final EmailVerificationRepository emailVerificationRepository;
+    private final MemberRepository memberRepository;
     private final EmailVerificationCodeGenerator codeGenerator;
     private final EmailVerificationTokenGenerator tokenGenerator;
     private final EmailVerificationHasher hasher;
@@ -41,6 +43,7 @@ public class EmailVerificationService {
     public void sendCode(SendEmailVerificationCodeRequest request) {
         String email = normalizeEmail(request.email());
         EmailVerificationPurpose purpose = request.purpose();
+        validateSignUpEmailAvailability(email, purpose);
         emailVerificationRepository.acquireTransactionLock(email, purpose.name());
 
         LocalDateTime issuedAt = currentDateTime();
@@ -114,6 +117,13 @@ public class EmailVerificationService {
                 purpose
         );
         return new EmailVerificationTokenResult(verificationToken);
+    }
+
+    private void validateSignUpEmailAvailability(String email, EmailVerificationPurpose purpose) {
+        if (purpose == EmailVerificationPurpose.SIGN_UP
+                && memberRepository.existsByEmailIgnoreCase(email)) {
+            throw new BusinessException(AuthErrorCode.DUPLICATE_EMAIL);
+        }
     }
 
     private EmailVerification reissue(

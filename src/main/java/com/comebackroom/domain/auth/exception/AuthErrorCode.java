@@ -17,6 +17,10 @@ public enum AuthErrorCode implements ErrorCode {
             HttpStatus.UNAUTHORIZED,
             "Refresh Token이 만료되었거나 유효하지 않습니다."
     ),
+    DUPLICATE_EMAIL(
+            HttpStatus.CONFLICT,
+            "이미 가입된 이메일입니다."
+    ),
     EMAIL_REQUEST_LIMIT_EXCEEDED(
             HttpStatus.TOO_MANY_REQUESTS,
             "인증코드 요청 횟수를 초과했습니다."

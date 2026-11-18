@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -88,7 +90,13 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString()))
+                .andExpect(cookie().value("refreshToken", NEW_REFRESH_TOKEN))
+                .andExpect(cookie().path("refreshToken", "/api/v1/auth"))
+                .andExpect(cookie().maxAge("refreshToken", (int) Duration.ofDays(14).toSeconds()))
+                .andExpect(cookie().httpOnly("refreshToken", true))
+                .andExpect(cookie().secure("refreshToken", false))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Lax")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Expires=")))
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.code").value("LOGIN_SUCCESS"))
                 .andExpect(jsonPath("$.message").value("로그인에 성공했습니다."))
@@ -118,7 +126,13 @@ class AuthControllerTest {
                         .cookie(new Cookie("refreshToken", OLD_REFRESH_TOKEN)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString()))
+                .andExpect(cookie().value("refreshToken", NEW_REFRESH_TOKEN))
+                .andExpect(cookie().path("refreshToken", "/api/v1/auth"))
+                .andExpect(cookie().maxAge("refreshToken", (int) Duration.ofDays(14).toSeconds()))
+                .andExpect(cookie().httpOnly("refreshToken", true))
+                .andExpect(cookie().secure("refreshToken", false))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Lax")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Expires=")))
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.code").value("TOKEN_REFRESH_SUCCESS"))
                 .andExpect(jsonPath("$.message").value("토큰이 재발급되었습니다."))
@@ -175,6 +189,30 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value("EMAIL_VERIFIED"))
                 .andExpect(jsonPath("$.message").value("이메일 인증이 완료되었습니다."))
                 .andExpect(jsonPath("$.data.verificationToken").value(VERIFICATION_TOKEN));
+    }
+
+    @Test
+    @DisplayName("가입된 이메일의 회원가입 인증 요청은 공통 409 오류 응답을 반환한다")
+    void failToSendSignUpCodeToRegisteredEmail() throws Exception {
+        willThrow(new BusinessException(AuthErrorCode.DUPLICATE_EMAIL))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zin@example.com",
+                                  "purpose": "SIGN_UP"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("DUPLICATE_EMAIL"))
+                .andExpect(jsonPath("$.message").value("이미 가입된 이메일입니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     @Test
