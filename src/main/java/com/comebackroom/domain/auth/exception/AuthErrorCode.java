@@ -21,6 +21,10 @@ public enum AuthErrorCode implements ErrorCode {
             HttpStatus.CONFLICT,
             "이미 가입된 이메일입니다."
     ),
+    EMAIL_RESEND_TOO_SOON(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "인증코드 재요청 대기시간이 지나지 않았습니다."
+    ),
     EMAIL_REQUEST_LIMIT_EXCEEDED(
             HttpStatus.TOO_MANY_REQUESTS,
             "인증코드 요청 횟수를 초과했습니다."

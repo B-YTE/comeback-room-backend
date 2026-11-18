@@ -9,6 +9,7 @@ import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.repository.EmailVerificationRepository;
 import com.comebackroom.domain.member.repository.MemberRepository;
+import com.comebackroom.global.email.EmailDeliveryException;
 import com.comebackroom.global.email.EmailMessage;
 import com.comebackroom.global.email.EmailSender;
 import com.comebackroom.global.exception.BusinessException;
@@ -33,7 +34,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -86,15 +89,23 @@ class EmailVerificationServiceTest {
                 "test-email-verification-secret-value-32-bytes"
         );
         hasher = new EmailVerificationHasher(properties);
-        emailVerificationService = new EmailVerificationService(
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        EmailVerificationIssueService emailVerificationIssueService = new EmailVerificationIssueService(
                 emailVerificationRepository,
                 memberRepository,
                 codeGenerator,
+                hasher,
+                properties,
+                clock
+        );
+        emailVerificationService = new EmailVerificationService(
+                emailVerificationRepository,
+                emailVerificationIssueService,
                 tokenGenerator,
                 hasher,
                 properties,
                 emailSender,
-                Clock.fixed(NOW, ZoneOffset.UTC)
+                clock
         );
     }
 
@@ -193,7 +204,7 @@ class EmailVerificationServiceTest {
 
         assertErrorCode(
                 () -> emailVerificationService.sendCode(sendRequest()),
-                AuthErrorCode.EMAIL_REQUEST_LIMIT_EXCEEDED
+                AuthErrorCode.EMAIL_RESEND_TOO_SOON
         );
 
         verify(emailVerificationRepository, never()).saveAndFlush(emailVerification);
@@ -227,6 +238,61 @@ class EmailVerificationServiceTest {
 
         assertThat(emailVerification.getRequestCount()).isEqualTo(5);
         verify(emailSender, never()).send(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("쿨다운과 시간당 한도에 동시에 걸리면 시간당 한도 오류를 우선한다")
+    void prioritizeWindowLimitOverCooldown() {
+        EmailVerification emailVerification = createEmailVerification(CURRENT_DATE_TIME.minusMinutes(4));
+        for (int minute = 3; minute >= 0; minute--) {
+            LocalDateTime issuedAt = CURRENT_DATE_TIME.minusMinutes(minute);
+            emailVerification.reissue(
+                    "b".repeat(64),
+                    issuedAt.plusMinutes(5),
+                    issuedAt,
+                    properties.requestLimitWindow()
+            );
+        }
+        given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
+        given(emailVerificationRepository.findWithLockByEmailAndPurpose(
+                EMAIL, EmailVerificationPurpose.SIGN_UP
+        )).willReturn(Optional.of(emailVerification));
+
+        assertErrorCode(
+                () -> emailVerificationService.sendCode(sendRequest()),
+                AuthErrorCode.EMAIL_REQUEST_LIMIT_EXCEEDED
+        );
+        verify(emailVerificationRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(emailSender);
+    }
+
+    @Test
+    @DisplayName("발급 정보 저장이 실패하면 이메일을 발송하지 않는다")
+    void doNotSendWhenPersistenceFails() {
+        given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
+        given(emailVerificationRepository.findWithLockByEmailAndPurpose(
+                EMAIL, EmailVerificationPurpose.SIGN_UP
+        )).willReturn(Optional.empty());
+        given(emailVerificationRepository.saveAndFlush(any()))
+                .willThrow(new IllegalStateException("발급 정보 저장 실패"));
+
+        assertThatThrownBy(() -> emailVerificationService.sendCode(sendRequest()))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(emailSender);
+    }
+
+    @Test
+    @DisplayName("메일 발송 실패는 성공으로 삼키지 않고 호출자에게 전달한다")
+    void propagateDeliveryFailure() {
+        given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
+        given(emailVerificationRepository.findWithLockByEmailAndPurpose(
+                EMAIL, EmailVerificationPurpose.SIGN_UP
+        )).willReturn(Optional.empty());
+        willThrow(new EmailDeliveryException("이메일 발송에 실패했습니다.", null))
+                .given(emailSender).send(any());
+
+        assertThatThrownBy(() -> emailVerificationService.sendCode(sendRequest()))
+                .isInstanceOf(EmailDeliveryException.class);
     }
 
     @Test

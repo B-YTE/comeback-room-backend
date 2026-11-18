@@ -9,25 +9,36 @@ import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.service.AuthService;
 import com.comebackroom.domain.auth.service.EmailVerificationService;
+import com.comebackroom.global.email.EmailDeliveryException;
 import com.comebackroom.global.exception.BusinessException;
 import com.comebackroom.global.exception.GlobalExceptionHandler;
 import com.comebackroom.global.security.refresh.RefreshTokenCookieProvider;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
+import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -240,6 +251,52 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("재전송 대기 중이면 시간당 한도와 구분되는 공통 429 오류 응답을 반환한다")
+    void failToSendEmailVerificationCodeDuringCooldown() throws Exception {
+        willThrow(new BusinessException(AuthErrorCode.EMAIL_RESEND_TOO_SOON))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "zin@example.com", "purpose": "SIGN_UP"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.code").value("EMAIL_RESEND_TOO_SOON"))
+                .andExpect(jsonPath("$.message").value("인증코드 재요청 대기시간이 지나지 않았습니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.*", hasSize(5)));
+    }
+
+    @ParameterizedTest
+    @MethodSource("emailDeliveryFailures")
+    @DisplayName("외부 이메일 서비스 장애는 제공자 상세정보 없이 공통 503 오류 응답으로 반환한다")
+    void failToSendEmailWithServiceUnavailable(Exception cause) throws Exception {
+        willThrow(new EmailDeliveryException("provider-private-diagnostic", cause))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "zin@example.com", "purpose": "SIGN_UP"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.code").value("EMAIL_DELIVERY_FAILED"))
+                .andExpect(jsonPath("$.message")
+                        .value("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.*", hasSize(5)))
+                .andExpect(content().string(not(containsString("provider-private-diagnostic"))));
+    }
+
+    @Test
     @DisplayName("인증코드가 잘못되었거나 만료되면 공통 400 오류 응답을 반환한다")
     void failToVerifyInvalidEmailVerificationCode() throws Exception {
         given(emailVerificationService.verifyCode(any(
@@ -347,5 +404,15 @@ class AuthControllerTest {
 
         verify(authService, never()).login(any(LoginRequest.class));
         verify(refreshTokenCookieProvider, never()).createCookie(any());
+    }
+
+    private static Stream<Exception> emailDeliveryFailures() {
+        return Stream.of(
+                new HttpClientErrorException(HttpStatus.FORBIDDEN),
+                new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS),
+                new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR),
+                new HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE),
+                new ResourceAccessException("provider-private-diagnostic", new SocketTimeoutException())
+        );
     }
 }

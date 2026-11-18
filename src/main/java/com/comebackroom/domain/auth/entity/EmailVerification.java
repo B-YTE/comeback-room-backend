@@ -114,23 +114,20 @@ public class EmailVerification extends BaseTimeEntity {
         return new EmailVerification(email, purpose, codeHash, codeExpiresAt, issuedAt);
     }
 
-    public boolean canRequest(
+    public boolean isInResendCooldown(LocalDateTime requestedAt, Duration resendCooldown) {
+        validateDateTime(requestedAt, "requestedAt");
+        return requestedAt.isBefore(lastSentAt.plus(resendCooldown));
+    }
+
+    public boolean hasReachedRequestLimit(
             LocalDateTime requestedAt,
-            Duration resendCooldown,
             Duration requestLimitWindow,
             int maxRequestsPerWindow
     ) {
         validateDateTime(requestedAt, "requestedAt");
 
-        if (requestedAt.isBefore(lastSentAt.plus(resendCooldown))) {
-            return false;
-        }
-
-        if (!requestedAt.isBefore(requestWindowStartedAt.plus(requestLimitWindow))) {
-            return true;
-        }
-
-        return requestCount < maxRequestsPerWindow;
+        return requestedAt.isBefore(requestWindowStartedAt.plus(requestLimitWindow))
+                && requestCount >= maxRequestsPerWindow;
     }
 
     public void reissue(

@@ -8,13 +8,13 @@ import com.comebackroom.domain.auth.entity.EmailVerification;
 import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.repository.EmailVerificationRepository;
-import com.comebackroom.domain.member.repository.MemberRepository;
 import com.comebackroom.global.email.EmailMessage;
 import com.comebackroom.global.email.EmailSender;
 import com.comebackroom.global.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -28,50 +28,23 @@ import java.util.Locale;
 public class EmailVerificationService {
 
     private static final ZoneId APPLICATION_ZONE_ID = ZoneId.of("Asia/Seoul");
-    private static final String EMAIL_SUBJECT = "[Comeback Room] 이메일 인증코드";
 
     private final EmailVerificationRepository emailVerificationRepository;
-    private final MemberRepository memberRepository;
-    private final EmailVerificationCodeGenerator codeGenerator;
+    private final EmailVerificationIssueService emailVerificationIssueService;
     private final EmailVerificationTokenGenerator tokenGenerator;
     private final EmailVerificationHasher hasher;
     private final EmailVerificationProperties properties;
     private final EmailSender emailSender;
     private final Clock clock;
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void sendCode(SendEmailVerificationCodeRequest request) {
         String email = normalizeEmail(request.email());
         EmailVerificationPurpose purpose = request.purpose();
-        validateSignUpEmailAvailability(email, purpose);
-        emailVerificationRepository.acquireTransactionLock(email, purpose.name());
+        EmailMessage emailMessage = emailVerificationIssueService.issueCode(email, purpose);
 
-        LocalDateTime issuedAt = currentDateTime();
-        String verificationCode = codeGenerator.generateCode();
-        String codeHash = hasher.hashVerificationCode(email, purpose, verificationCode);
-
-        EmailVerification emailVerification = emailVerificationRepository
-                .findWithLockByEmailAndPurpose(email, purpose)
-                .map(existingVerification -> reissue(
-                        existingVerification,
-                        codeHash,
-                        issuedAt
-                ))
-                .orElseGet(() -> EmailVerification.issue(
-                        email,
-                        purpose,
-                        codeHash,
-                        issuedAt.plus(properties.codeExpiration()),
-                        issuedAt
-                ));
-
-        emailVerificationRepository.saveAndFlush(emailVerification);
-        emailSender.send(createEmailMessage(
-                email,
-                purpose,
-                verificationCode,
-                codeHash
-        ));
+        // 발송 실패/타임아웃이어도 이미 커밋한 코드와 요청 제한은 유지한다.
+        emailSender.send(emailMessage);
 
         log.info(
                 "이메일 인증코드 발급 완료 email={} purpose={}",
@@ -119,36 +92,6 @@ public class EmailVerificationService {
         return new EmailVerificationTokenResult(verificationToken);
     }
 
-    private void validateSignUpEmailAvailability(String email, EmailVerificationPurpose purpose) {
-        if (purpose == EmailVerificationPurpose.SIGN_UP
-                && memberRepository.existsByEmailIgnoreCase(email)) {
-            throw new BusinessException(AuthErrorCode.DUPLICATE_EMAIL);
-        }
-    }
-
-    private EmailVerification reissue(
-            EmailVerification emailVerification,
-            String codeHash,
-            LocalDateTime issuedAt
-    ) {
-        if (!emailVerification.canRequest(
-                issuedAt,
-                properties.resendCooldown(),
-                properties.requestLimitWindow(),
-                properties.maxRequestsPerWindow()
-        )) {
-            throw new BusinessException(AuthErrorCode.EMAIL_REQUEST_LIMIT_EXCEEDED);
-        }
-
-        emailVerification.reissue(
-                codeHash,
-                issuedAt.plus(properties.codeExpiration()),
-                issuedAt,
-                properties.requestLimitWindow()
-        );
-        return emailVerification;
-    }
-
     private EmailVerification getVerifiableEmailVerification(
             String email,
             EmailVerificationPurpose purpose,
@@ -167,30 +110,6 @@ public class EmailVerificationService {
             throw new BusinessException(AuthErrorCode.INVALID_VERIFICATION_CODE);
         }
         return emailVerification;
-    }
-
-    private EmailMessage createEmailMessage(
-            String email,
-            EmailVerificationPurpose purpose,
-            String verificationCode,
-            String codeHash
-    ) {
-        String text = """
-                Comeback Room %s 이메일 인증코드는 %s입니다.
-                인증코드는 %d분 동안 유효합니다.
-                본인이 요청하지 않았다면 이 메일을 무시해주세요.
-                """.formatted(
-                purpose.getDescription(),
-                verificationCode,
-                properties.codeExpiration().toMinutes()
-        );
-
-        return new EmailMessage(
-                email,
-                EMAIL_SUBJECT,
-                text,
-                "email-verification/" + codeHash
-        );
     }
 
     private LocalDateTime currentDateTime() {

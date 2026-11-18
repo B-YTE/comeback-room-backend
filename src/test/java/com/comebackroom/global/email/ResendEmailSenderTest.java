@@ -3,12 +3,16 @@ package com.comebackroom.global.email;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+
+import java.net.SocketTimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,6 +22,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @DisplayName("Resend 이메일 발송")
@@ -62,11 +67,24 @@ class ResendEmailSenderTest {
         server.verify();
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(ints = {403, 429, 500, 503})
     @DisplayName("Resend API가 실패하면 이메일 발송 예외로 변환한다")
-    void failToSend() {
+    void failToSend(int status) {
         server.expect(once(), requestTo(BASE_URL + "/emails"))
-                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        assertThatThrownBy(() -> emailSender.send(createEmailMessage()))
+                .isInstanceOf(EmailDeliveryException.class)
+                .hasMessage("이메일 발송에 실패했습니다.");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("Resend 타임아웃도 이메일 발송 예외로 변환한다")
+    void failToSendOnTimeout() {
+        server.expect(once(), requestTo(BASE_URL + "/emails"))
+                .andRespond(withException(new SocketTimeoutException("응답 시간 초과")));
 
         assertThatThrownBy(() -> emailSender.send(createEmailMessage()))
                 .isInstanceOf(EmailDeliveryException.class)

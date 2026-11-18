@@ -43,18 +43,14 @@ class EmailVerificationTest {
         EmailVerification emailVerification = createEmailVerification();
 
         assertAll(
-                () -> assertThat(emailVerification.canRequest(
+                () -> assertThat(emailVerification.isInResendCooldown(
                         ISSUED_AT.plusSeconds(59),
-                        Duration.ofMinutes(1),
-                        Duration.ofHours(1),
-                        5
-                )).isFalse(),
-                () -> assertThat(emailVerification.canRequest(
+                        Duration.ofMinutes(1)
+                )).isTrue(),
+                () -> assertThat(emailVerification.isInResendCooldown(
                         ISSUED_AT.plusMinutes(1),
-                        Duration.ofMinutes(1),
-                        Duration.ofHours(1),
-                        5
-                )).isTrue()
+                        Duration.ofMinutes(1)
+                )).isFalse()
         );
     }
 
@@ -69,20 +65,18 @@ class EmailVerificationTest {
                 Duration.ofHours(1)
         );
 
-        assertThat(emailVerification.canRequest(
+        assertThat(emailVerification.hasReachedRequestLimit(
                 ISSUED_AT.plusMinutes(2),
-                Duration.ofMinutes(1),
-                Duration.ofHours(1),
-                2
-        )).isFalse();
-
-        LocalDateTime nextWindow = ISSUED_AT.plusHours(1);
-        assertThat(emailVerification.canRequest(
-                nextWindow,
-                Duration.ofMinutes(1),
                 Duration.ofHours(1),
                 2
         )).isTrue();
+
+        LocalDateTime nextWindow = ISSUED_AT.plusHours(1);
+        assertThat(emailVerification.hasReachedRequestLimit(
+                nextWindow,
+                Duration.ofHours(1),
+                2
+        )).isFalse();
 
         emailVerification.reissue(
                 CODE_HASH,

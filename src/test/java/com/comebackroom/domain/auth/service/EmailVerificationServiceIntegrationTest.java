@@ -25,8 +25,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,6 +53,7 @@ class EmailVerificationServiceIntegrationTest {
 
     private static final String EMAIL = "zin@example.com";
     private static final String VERIFICATION_CODE = "123456";
+    private static final Instant NOW = Instant.parse("2026-11-18T03:00:00Z");
 
     @Autowired
     private EmailVerificationService emailVerificationService;
@@ -69,11 +73,15 @@ class EmailVerificationServiceIntegrationTest {
     @MockitoBean
     private EmailSender emailSender;
 
+    @MockitoBean
+    private Clock clock;
+
     private Member registeredMember;
 
     @BeforeEach
     void setUp() {
         emailVerificationRepository.deleteAll();
+        given(clock.instant()).willReturn(NOW);
         given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
     }
 
@@ -137,8 +145,8 @@ class EmailVerificationServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("메일 발송이 실패하면 발급 정보 저장도 롤백한다")
-    void rollBackIssuanceWhenDeliveryFails() {
+    @DisplayName("발송 실패 시에도 커밋한 코드와 횟수는 유지하고 즉시 재요청은 제한한다")
+    void preserveIssuanceWhenDeliveryFails() {
         willThrow(new EmailDeliveryException("이메일 발송에 실패했습니다.", null))
                 .given(emailSender)
                 .send(any());
@@ -146,20 +154,57 @@ class EmailVerificationServiceIntegrationTest {
         assertThatThrownBy(() -> emailVerificationService.sendCode(sendRequest()))
                 .isInstanceOf(EmailDeliveryException.class);
 
-        assertThat(emailVerificationRepository.findByEmailAndPurpose(
+        EmailVerification emailVerification = emailVerificationRepository.findByEmailAndPurpose(
                 EMAIL,
                 EmailVerificationPurpose.SIGN_UP
-        )).isEmpty();
+        ).orElseThrow();
+        assertThat(emailVerification.getRequestCount()).isEqualTo(1);
+        assertThat(emailVerification.getCodeConsumedAt()).isNull();
+
+        assertThatThrownBy(() -> emailVerificationService.sendCode(sendRequest()))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.EMAIL_RESEND_TOO_SOON));
+        then(emailSender).should(times(1)).send(any());
+
+        // 타임아웃 후 실제 메일이 도착한 경우에도 저장된 코드로 인증할 수 있다.
+        assertThat(emailVerificationService.verifyCode(new VerifyEmailVerificationCodeRequest(
+                EMAIL, VERIFICATION_CODE, EmailVerificationPurpose.SIGN_UP
+        )).verificationToken()).isNotBlank();
     }
 
     @Test
-    @DisplayName("최초 발급 요청이 동시에 들어오면 하나만 발급하고 나머지는 요청 제한으로 처리한다")
-    void serializeConcurrentFirstIssuance() throws Exception {
+    @DisplayName("재발급 메일 발송이 실패해도 새 코드만 유지하고 기존 코드는 복원하지 않는다")
+    void preserveReissuedCodeWhenDeliveryFails() {
+        emailVerificationService.sendCode(sendRequest());
+        given(clock.instant()).willReturn(NOW.plusSeconds(61));
+        given(codeGenerator.generateCode()).willReturn("654321");
+        willThrow(new EmailDeliveryException("이메일 발송에 실패했습니다.", null))
+                .given(emailSender).send(any());
+
+        assertThatThrownBy(() -> emailVerificationService.sendCode(sendRequest()))
+                .isInstanceOf(EmailDeliveryException.class);
+
+        EmailVerification emailVerification = emailVerificationRepository.findByEmailAndPurpose(
+                EMAIL, EmailVerificationPurpose.SIGN_UP
+        ).orElseThrow();
+        assertThat(emailVerification.getRequestCount()).isEqualTo(2);
+        assertThatThrownBy(() -> emailVerificationService.verifyCode(new VerifyEmailVerificationCodeRequest(
+                EMAIL, VERIFICATION_CODE, EmailVerificationPurpose.SIGN_UP
+        ))).isInstanceOf(BusinessException.class);
+        assertThat(emailVerificationService.verifyCode(new VerifyEmailVerificationCodeRequest(
+                EMAIL, "654321", EmailVerificationPurpose.SIGN_UP
+        )).verificationToken()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("메일 발송 전 DB가 커밋되고 발송 중에는 트랜잭션과 발급 락을 유지하지 않는다")
+    void commitBeforeDeliveryAndReleaseLocks() throws Exception {
         CountDownLatch deliveryStarted = new CountDownLatch(1);
         CountDownLatch allowDeliveryCompletion = new CountDownLatch(1);
         willAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             deliveryStarted.countDown();
-            if (!allowDeliveryCompletion.await(5, TimeUnit.SECONDS)) {
+            if (!allowDeliveryCompletion.await(10, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("이메일 발송 대기시간을 초과했습니다.");
             }
             return null;
@@ -168,22 +213,60 @@ class EmailVerificationServiceIntegrationTest {
         ExecutorService executorService = Executors.newFixedThreadPool(2);
         try {
             Future<Throwable> firstRequest = submitSendRequest(executorService);
-            assertThat(deliveryStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(deliveryStarted.await(10, TimeUnit.SECONDS)).isTrue();
+
+            // 다른 연결에서도 커밋된 발급 정보를 조회할 수 있다.
+            assertThat(emailVerificationRepository.findByEmailAndPurpose(
+                    EMAIL, EmailVerificationPurpose.SIGN_UP
+            )).isPresent();
+            Future<Throwable> secondRequest = submitSendRequest(executorService);
+            assertThat(secondRequest.get(5, TimeUnit.SECONDS))
+                    .isInstanceOfSatisfying(BusinessException.class, exception ->
+                            assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.EMAIL_RESEND_TOO_SOON));
+            assertThat(firstRequest.isDone()).isFalse();
+
+            allowDeliveryCompletion.countDown();
+            assertThat(firstRequest.get(5, TimeUnit.SECONDS)).isNull();
+            assertThat(emailVerificationRepository.count()).isEqualTo(1);
+            then(emailSender).should(times(1)).send(any());
+        } finally {
+            allowDeliveryCompletion.countDown();
+            executorService.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("최초 발급 요청이 동시에 들어오면 하나만 발급하고 나머지는 요청 제한으로 처리한다")
+    void serializeConcurrentFirstIssuance() throws Exception {
+        CountDownLatch issuanceStarted = new CountDownLatch(1);
+        CountDownLatch allowIssuanceCompletion = new CountDownLatch(1);
+        willAnswer(invocation -> {
+            issuanceStarted.countDown();
+            if (!allowIssuanceCompletion.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("인증코드 발급 대기시간을 초과했습니다.");
+            }
+            return VERIFICATION_CODE;
+        }).given(codeGenerator).generateCode();
+
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> firstRequest = submitSendRequest(executorService);
+            assertThat(issuanceStarted.await(10, TimeUnit.SECONDS)).isTrue();
 
             Future<Throwable> secondRequest = submitSendRequest(executorService);
             waitUntilAdvisoryLockIsWaiting(Duration.ofSeconds(5));
-            allowDeliveryCompletion.countDown();
+            allowIssuanceCompletion.countDown();
 
             assertThat(firstRequest.get(5, TimeUnit.SECONDS)).isNull();
             assertThat(secondRequest.get(5, TimeUnit.SECONDS))
                     .isInstanceOfSatisfying(BusinessException.class, exception ->
                             assertThat(exception.getErrorCode()).isEqualTo(
-                                    AuthErrorCode.EMAIL_REQUEST_LIMIT_EXCEEDED
+                                    AuthErrorCode.EMAIL_RESEND_TOO_SOON
                             ));
             assertThat(emailVerificationRepository.count()).isEqualTo(1);
             then(emailSender).should(times(1)).send(any());
         } finally {
-            allowDeliveryCompletion.countDown();
+            allowIssuanceCompletion.countDown();
             executorService.shutdownNow();
         }
     }
