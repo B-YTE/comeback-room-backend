@@ -1,5 +1,6 @@
 package com.comebackroom.global.exception;
 
+import com.comebackroom.global.email.EmailDeliveryException;
 import com.comebackroom.global.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -99,6 +100,19 @@ public class GlobalExceptionHandler {
     ) {
         log.warn("지원하지 않는 Content-Type path={}", request.getRequestURI());
         return toResponse(GlobalErrorCode.UNSUPPORTED_MEDIA_TYPE, request);
+    }
+
+    // 외부 이메일 서비스 발송 실패 (503). 제공자 응답 본문은 로그/클라이언트에 노출하지 않는다.
+    @ExceptionHandler(EmailDeliveryException.class)
+    public ResponseEntity<ErrorResponse> handleEmailDeliveryException(
+            EmailDeliveryException e, HttpServletRequest request
+    ) {
+        Throwable cause = e.getCause();
+        String causeType = cause == null
+                ? e.getClass().getSimpleName()
+                : cause.getClass().getSimpleName();
+        log.error("이메일 발송 실패 path={} cause={}", request.getRequestURI(), causeType);
+        return toResponse(GlobalErrorCode.EMAIL_DELIVERY_FAILED, request);
     }
 
     // 예상치 못한 예외 (500)

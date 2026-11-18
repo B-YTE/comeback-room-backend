@@ -56,7 +56,7 @@ class RenderDeploymentConfigurationTest {
     }
 
     @Test
-    @DisplayName("Render 개발 서버 CORS와 Refresh Token Cookie 정책을 적용한다")
+    @DisplayName("Render 개발 서버 CORS, Cookie, 이메일 발송 정책을 적용한다")
     void applyRenderDevelopmentCorsAndCookieConfiguration() {
         renderDevContextRunner.run(context -> assertAll(
                 () -> assertThat(context.getEnvironment().getProperty("app.cors.allowed-origins"))
@@ -67,6 +67,8 @@ class RenderDeploymentConfigurationTest {
                 )).isTrue(),
                 () -> assertThat(context.getEnvironment().getProperty("app.refresh-token.cookie-same-site"))
                         .isEqualTo("None"),
+                () -> assertThat(context.getEnvironment().getProperty("app.email.delivery-mode"))
+                        .isEqualTo("resend"),
                 () -> assertThat(context.getEnvironment().getProperty("management.endpoint.health.show-details"))
                         .isEqualTo("never")
         ));
@@ -96,7 +98,9 @@ class RenderDeploymentConfigurationTest {
                         Boolean.class
                 )).isFalse(),
                 () -> assertThat(context.getEnvironment().getProperty("app.refresh-token.cookie-same-site"))
-                        .isEqualTo("Lax")
+                        .isEqualTo("Lax"),
+                () -> assertThat(context.getEnvironment().getProperty("app.email.delivery-mode"))
+                        .isEqualTo("console")
         ));
     }
 }

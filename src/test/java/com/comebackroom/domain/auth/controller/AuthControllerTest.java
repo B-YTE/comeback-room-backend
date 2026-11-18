@@ -1,33 +1,53 @@
 package com.comebackroom.domain.auth.controller;
 
+import com.comebackroom.domain.auth.dto.EmailVerificationTokenResult;
 import com.comebackroom.domain.auth.dto.IssuedTokenResult;
 import com.comebackroom.domain.auth.dto.request.LoginRequest;
+import com.comebackroom.domain.auth.dto.request.SendEmailVerificationCodeRequest;
+import com.comebackroom.domain.auth.dto.request.VerifyEmailVerificationCodeRequest;
+import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.service.AuthService;
+import com.comebackroom.domain.auth.service.EmailVerificationService;
+import com.comebackroom.global.email.EmailDeliveryException;
 import com.comebackroom.global.exception.BusinessException;
 import com.comebackroom.global.exception.GlobalExceptionHandler;
 import com.comebackroom.global.security.refresh.RefreshTokenCookieProvider;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
+import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -35,18 +55,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(GlobalExceptionHandler.class)
 @AutoConfigureMockMvc(addFilters = false)
 @WebMvcTest(controllers = AuthController.class)
-@DisplayName("인증 토큰 API")
+@DisplayName("인증 API")
 class AuthControllerTest {
 
     private static final String ACCESS_TOKEN = "access-token";
     private static final String OLD_REFRESH_TOKEN = "old-refresh-token";
     private static final String NEW_REFRESH_TOKEN = "new-refresh-token";
+    private static final String VERIFICATION_TOKEN = "email-verification-token";
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private EmailVerificationService emailVerificationService;
 
     @MockitoBean
     private RefreshTokenCookieProvider refreshTokenCookieProvider;
@@ -77,7 +101,13 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString()))
+                .andExpect(cookie().value("refreshToken", NEW_REFRESH_TOKEN))
+                .andExpect(cookie().path("refreshToken", "/api/v1/auth"))
+                .andExpect(cookie().maxAge("refreshToken", (int) Duration.ofDays(14).toSeconds()))
+                .andExpect(cookie().httpOnly("refreshToken", true))
+                .andExpect(cookie().secure("refreshToken", false))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Lax")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Expires=")))
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.code").value("LOGIN_SUCCESS"))
                 .andExpect(jsonPath("$.message").value("로그인에 성공했습니다."))
@@ -107,12 +137,205 @@ class AuthControllerTest {
                         .cookie(new Cookie("refreshToken", OLD_REFRESH_TOKEN)))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString()))
+                .andExpect(cookie().value("refreshToken", NEW_REFRESH_TOKEN))
+                .andExpect(cookie().path("refreshToken", "/api/v1/auth"))
+                .andExpect(cookie().maxAge("refreshToken", (int) Duration.ofDays(14).toSeconds()))
+                .andExpect(cookie().httpOnly("refreshToken", true))
+                .andExpect(cookie().secure("refreshToken", false))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Lax")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Expires=")))
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.code").value("TOKEN_REFRESH_SUCCESS"))
                 .andExpect(jsonPath("$.message").value("토큰이 재발급되었습니다."))
                 .andExpect(jsonPath("$.data.accessToken").value(ACCESS_TOKEN))
                 .andExpect(jsonPath("$.data.refreshToken").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("이메일 인증코드 발급 성공 시 데이터 없는 공통 성공 응답을 반환한다")
+    void sendEmailVerificationCode() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zin@example.com",
+                                  "purpose": "SIGN_UP"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.code").value("EMAIL_CODE_SENT"))
+                .andExpect(jsonPath("$.message")
+                        .value("인증코드가 이메일로 발송되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        verify(emailVerificationService).sendCode(
+                new SendEmailVerificationCodeRequest(
+                        "zin@example.com",
+                        EmailVerificationPurpose.SIGN_UP
+                )
+        );
+    }
+
+    @Test
+    @DisplayName("이메일 인증 성공 시 verificationToken을 반환한다")
+    void verifyEmailVerificationCode() throws Exception {
+        given(emailVerificationService.verifyCode(any(
+                VerifyEmailVerificationCodeRequest.class
+        ))).willReturn(new EmailVerificationTokenResult(VERIFICATION_TOKEN));
+
+        mockMvc.perform(post("/api/v1/auth/email/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zin@example.com",
+                                  "verificationCode": "123456",
+                                  "purpose": "SIGN_UP"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.code").value("EMAIL_VERIFIED"))
+                .andExpect(jsonPath("$.message").value("이메일 인증이 완료되었습니다."))
+                .andExpect(jsonPath("$.data.verificationToken").value(VERIFICATION_TOKEN));
+    }
+
+    @Test
+    @DisplayName("가입된 이메일의 회원가입 인증 요청은 공통 409 오류 응답을 반환한다")
+    void failToSendSignUpCodeToRegisteredEmail() throws Exception {
+        willThrow(new BusinessException(AuthErrorCode.DUPLICATE_EMAIL))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zin@example.com",
+                                  "purpose": "SIGN_UP"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("DUPLICATE_EMAIL"))
+                .andExpect(jsonPath("$.message").value("이미 가입된 이메일입니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("인증코드 요청 제한을 초과하면 공통 429 오류 응답을 반환한다")
+    void failToSendEmailVerificationCodeOverLimit() throws Exception {
+        willThrow(new BusinessException(AuthErrorCode.EMAIL_REQUEST_LIMIT_EXCEEDED))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zin@example.com",
+                                  "purpose": "SIGN_UP"
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.code").value("EMAIL_REQUEST_LIMIT_EXCEEDED"))
+                .andExpect(jsonPath("$.message")
+                        .value("인증코드 요청 횟수를 초과했습니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    @DisplayName("재전송 대기 중이면 시간당 한도와 구분되는 공통 429 오류 응답을 반환한다")
+    void failToSendEmailVerificationCodeDuringCooldown() throws Exception {
+        willThrow(new BusinessException(AuthErrorCode.EMAIL_RESEND_TOO_SOON))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "zin@example.com", "purpose": "SIGN_UP"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.code").value("EMAIL_RESEND_TOO_SOON"))
+                .andExpect(jsonPath("$.message").value("인증코드 재요청 대기시간이 지나지 않았습니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.*", hasSize(5)));
+    }
+
+    @ParameterizedTest
+    @MethodSource("emailDeliveryFailures")
+    @DisplayName("외부 이메일 서비스 장애는 제공자 상세정보 없이 공통 503 오류 응답으로 반환한다")
+    void failToSendEmailWithServiceUnavailable(Exception cause) throws Exception {
+        willThrow(new EmailDeliveryException("provider-private-diagnostic", cause))
+                .given(emailVerificationService)
+                .sendCode(any(SendEmailVerificationCodeRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "zin@example.com", "purpose": "SIGN_UP"}
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.code").value("EMAIL_DELIVERY_FAILED"))
+                .andExpect(jsonPath("$.message")
+                        .value("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/send"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.*", hasSize(5)))
+                .andExpect(content().string(not(containsString("provider-private-diagnostic"))));
+    }
+
+    @Test
+    @DisplayName("인증코드가 잘못되었거나 만료되면 공통 400 오류 응답을 반환한다")
+    void failToVerifyInvalidEmailVerificationCode() throws Exception {
+        given(emailVerificationService.verifyCode(any(
+                VerifyEmailVerificationCodeRequest.class
+        ))).willThrow(new BusinessException(AuthErrorCode.INVALID_VERIFICATION_CODE));
+
+        mockMvc.perform(post("/api/v1/auth/email/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "zin@example.com",
+                                  "verificationCode": "999999",
+                                  "purpose": "SIGN_UP"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION_CODE"))
+                .andExpect(jsonPath("$.message")
+                        .value("인증코드가 일치하지 않거나 만료되었습니다."))
+                .andExpect(jsonPath("$.path").value("/api/v1/auth/email/verify"))
+                .andExpect(jsonPath("$.timestamp").exists());
+    }
+
+    @Test
+    @DisplayName("이메일 형식이 잘못되거나 목적이 없으면 공통 400 오류 응답을 반환한다")
+    void failToSendEmailVerificationCodeWithInvalidInput() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/email/send")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "invalid-email",
+                                  "purpose": null
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"));
+
+        verify(emailVerificationService, never()).sendCode(any());
     }
 
     @Test
@@ -181,5 +404,15 @@ class AuthControllerTest {
 
         verify(authService, never()).login(any(LoginRequest.class));
         verify(refreshTokenCookieProvider, never()).createCookie(any());
+    }
+
+    private static Stream<Exception> emailDeliveryFailures() {
+        return Stream.of(
+                new HttpClientErrorException(HttpStatus.FORBIDDEN),
+                new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS),
+                new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR),
+                new HttpServerErrorException(HttpStatus.SERVICE_UNAVAILABLE),
+                new ResourceAccessException("provider-private-diagnostic", new SocketTimeoutException())
+        );
     }
 }

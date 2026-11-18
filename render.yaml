@@ -36,6 +36,12 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: EMAIL_VERIFICATION_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
 
 databases:
   - name: comeback-room-postgres-dev
