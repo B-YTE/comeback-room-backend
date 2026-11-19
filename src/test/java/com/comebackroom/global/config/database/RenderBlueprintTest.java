@@ -51,6 +51,15 @@ class RenderBlueprintTest {
         List<Map<String, Object>> environmentVariables = mapList(service, "envVars");
         Map<String, Object> jwtSecret = findByKey(environmentVariables, "JWT_SECRET");
         Map<String, Object> corsOrigins = findByKey(environmentVariables, "CORS_ALLOWED_ORIGINS");
+        Map<String, Object> emailVerificationSecret = findByKey(
+                environmentVariables,
+                "EMAIL_VERIFICATION_SECRET"
+        );
+        Map<String, Object> resendApiKey = findByKey(environmentVariables, "RESEND_API_KEY");
+        Map<String, Object> emailFromAddress = findByKey(
+                environmentVariables,
+                "EMAIL_FROM_ADDRESS"
+        );
 
         assertDatabaseReference(environmentVariables, "DB_HOST", "host");
         assertDatabaseReference(environmentVariables, "DB_PORT", "port");
@@ -62,7 +71,16 @@ class RenderBlueprintTest {
                 () -> assertThat(jwtSecret)
                         .containsEntry("generateValue", true)
                         .doesNotContainKey("value"),
+                () -> assertThat(emailVerificationSecret)
+                        .containsEntry("generateValue", true)
+                        .doesNotContainKey("value"),
                 () -> assertThat(corsOrigins)
+                        .containsEntry("sync", false)
+                        .doesNotContainKey("value"),
+                () -> assertThat(resendApiKey)
+                        .containsEntry("sync", false)
+                        .doesNotContainKey("value"),
+                () -> assertThat(emailFromAddress)
                         .containsEntry("sync", false)
                         .doesNotContainKey("value")
         );

@@ -19,6 +19,9 @@ public class Chat extends BaseCreatedEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "message_id", length = 36, nullable = false, updatable = false)
+    private String messageId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false)
     private Member member;
@@ -34,8 +37,9 @@ public class Chat extends BaseCreatedEntity {
     private String content;
 
     @Builder
-    private Chat(Member member, WatchingRoom room,
+    private Chat(String messageId, Member member, WatchingRoom room,
                  Integer videoPositionSeconds, String content) {
+        this.messageId = messageId;
         this.member = member;
         this.room = room;
         this.videoPositionSeconds = videoPositionSeconds;
