@@ -41,7 +41,7 @@ import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("투표 서비스")
-public class PollServiceTest {
+class PollServiceTest {
 
     private static final Long ROOM_ID = 3L;
     private static final Long HOST_ID = 7L;
