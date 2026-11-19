@@ -1,5 +1,6 @@
 package com.comebackroom.global.security.config;
 
+import com.comebackroom.global.config.TimeZoneConfig;
 import com.comebackroom.global.security.handler.SecurityAccessDeniedHandler;
 import com.comebackroom.global.security.handler.SecurityAuthenticationEntryPoint;
 import com.comebackroom.global.security.handler.SecurityErrorResponseWriter;
@@ -55,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({
         SecurityConfig.class,
         JwtConfig.class,
+        TimeZoneConfig.class,
         JwtTokenProvider.class,
         MemberJwtAuthenticationConverter.class,
         SecurityErrorResponseWriter.class,
