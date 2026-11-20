@@ -117,6 +117,21 @@ public class StompAuthChannelInterceptorTest {
         }
 
         @Test
+        @DisplayName("개인 오류 큐는 구독 가능하다")
+        void subscribeToUserErrorQueue_isAllowed() {
+            // given
+            StompHeaderAccessor accessor = accessorOf(StompCommand.SUBSCRIBE, connectedTo(ROOM_ID));
+            accessor.setDestination("/user/sub/errors");
+            Message<?> message = messageOf(accessor);
+
+            // when
+            Message<?> result = interceptor.preSend(message, channel);
+
+            // then
+            assertThat(result).isSameAs(message);
+        }
+
+        @Test
         @DisplayName("연결한 방과 다른 시청방 구독은 거부한다")
         void subscribeToOtherRoom_isRejected() {
             // given
@@ -131,7 +146,10 @@ public class StompAuthChannelInterceptorTest {
         @ValueSource(strings = {
                 "/sub/watching-rooms/*/events",
                 "/sub/**",
-                "/sub/watching-rooms/12345678901234567890/events"
+                "/sub/watching-rooms/12345678901234567890/events",
+                "/user/sub/errors/extra",
+                "/user/sub/chats",
+                "/sub/errors-user1234"
         })
         @DisplayName("허용되지 않는 형식의 경로의 구독은 거부한다")
         void subscribeToInvalidDestination_isRejected(String destination) {
