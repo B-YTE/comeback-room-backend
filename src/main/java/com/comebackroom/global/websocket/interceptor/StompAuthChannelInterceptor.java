@@ -29,6 +29,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final String APPLICATION_DESTINATION_PREFIX = "/pub/";
     private static final Pattern ROOM_SUBSCRIBE_DESTINATION =
             Pattern.compile("^/sub/watching-rooms/(\\d{1,18})/[a-z-]+$");
+    private static final String USER_ERROR_DESTINATION = "/user/sub/errors";
 
     private final WebSocketTicketStore ticketStore;
 
@@ -60,7 +61,14 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     private void authorizeSubscribe(StompHeaderAccessor accessor) {
-        Matcher matcher = ROOM_SUBSCRIBE_DESTINATION.matcher(requireDestination(accessor));
+        String destination = requireDestination(accessor);
+
+        // 개인 오류 큐는 방과 상관없는 주소라서 방 검사를 건너뛴다
+        if (USER_ERROR_DESTINATION.equals(destination)) {
+            return;
+        }
+
+        Matcher matcher = ROOM_SUBSCRIBE_DESTINATION.matcher(destination);
         if (!matcher.matches()) { // 허용 목록에 없는 경로는 모두 거부
             throw new BusinessException(WebSocketErrorCode.INVALID_DESTINATION);
         }
