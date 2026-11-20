@@ -1,7 +1,8 @@
 package com.comebackroom.domain.poll.controller;
 
 import com.comebackroom.domain.poll.dto.request.CreatePollRequest;
-import com.comebackroom.domain.poll.dto.response.CreatePollResponse;
+import com.comebackroom.domain.poll.dto.response.PollListResponse;
+import com.comebackroom.domain.poll.dto.response.PollResponse;
 import com.comebackroom.domain.poll.response.PollSuccessCode;
 import com.comebackroom.domain.poll.service.PollService;
 import com.comebackroom.global.response.ApiResponse;
@@ -20,12 +21,21 @@ public class PollController {
     private final PollService pollService;
 
     @PostMapping("/watching-rooms/{roomId}/polls")
-    public ResponseEntity<ApiResponse<CreatePollResponse>> createPoll(
+    public ResponseEntity<ApiResponse<PollResponse>> createPoll(
             @PathVariable Long roomId,
             @AuthenticationPrincipal MemberPrincipal principal,
             @RequestBody @Valid CreatePollRequest request
             ) {
-        CreatePollResponse response = pollService.createPoll(roomId, principal.memberId(), request);
+        PollResponse response = pollService.createPoll(roomId, principal.memberId(), request);
         return ApiResponse.success(PollSuccessCode.POLL_CREATED, response);
+    }
+
+    @GetMapping("/watching-rooms/{roomId}/polls")
+    public ResponseEntity<ApiResponse<PollListResponse>> getPolls(
+            @PathVariable Long roomId,
+            @AuthenticationPrincipal MemberPrincipal principal
+    ) {
+        PollListResponse response = pollService.getPolls(roomId, principal.memberId());
+        return ApiResponse.success(PollSuccessCode.POLL_LIST_RETRIEVED, response);
     }
 }
