@@ -3,14 +3,15 @@ package com.comebackroom.domain.poll.service;
 import com.comebackroom.domain.member.entity.Member;
 import com.comebackroom.domain.poll.dto.request.CreatePollRequest;
 import com.comebackroom.domain.poll.dto.request.CreatePollRequest.PollOptionRequest;
-import com.comebackroom.domain.poll.dto.response.CreatePollResponse;
-import com.comebackroom.domain.poll.dto.response.CreatePollResponse.PollOptionResponse;
+import com.comebackroom.domain.poll.dto.response.PollResponse;
 import com.comebackroom.domain.poll.entity.Poll;
 import com.comebackroom.domain.poll.enums.PollStatus;
 import com.comebackroom.domain.poll.exception.PollErrorCode;
 import com.comebackroom.domain.poll.repository.PollRepository;
+import com.comebackroom.domain.poll.repository.PollVoteRepository;
 import com.comebackroom.domain.watchingroom.entity.WatchingRoom;
 import com.comebackroom.domain.watchingroom.exception.WatchingRoomErrorCode;
+import com.comebackroom.domain.watchingroom.repository.RoomParticipantRepository;
 import com.comebackroom.domain.watchingroom.repository.WatchingRoomRepository;
 import com.comebackroom.global.config.TimeZoneConfig;
 import com.comebackroom.global.exception.BusinessException;
@@ -54,14 +55,21 @@ class PollServiceTest {
     private PollRepository pollRepository;
 
     @Mock
+    private PollVoteRepository pollVoteRepository;
+
+    @Mock
     private WatchingRoomRepository watchingRoomRepository;
+
+    @Mock
+    private RoomParticipantRepository roomParticipantRepository;
 
     private PollService pollService;
 
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(NOW, TimeZoneConfig.APPLICATION_ZONE_ID);
-        pollService = new PollService(pollRepository, watchingRoomRepository, fixedClock);
+        pollService = new PollService(pollRepository, pollVoteRepository, watchingRoomRepository,
+                roomParticipantRepository, fixedClock);
     }
 
     @Test
@@ -73,7 +81,7 @@ class PollServiceTest {
         given(watchingRoomRepository.findById(ROOM_ID)).willReturn(Optional.of(room));
 
         // when
-        CreatePollResponse response = pollService.createPoll(
+        PollResponse response = pollService.createPoll(
                 ROOM_ID, HOST_ID, createRequest("원영", "유진", "레이", "리즈"));
 
         // then
@@ -88,7 +96,7 @@ class PollServiceTest {
                 () -> assertThat(response.expiresAt())
                         .isEqualTo(LocalDateTime.of(2026, 11, 19, 21, 10)),
                 () -> assertThat(response.pollOptions())
-                        .extracting(PollOptionResponse::content)
+                        .extracting(PollResponse.PollOptionResponse::content)
                         .containsExactly("원영", "유진", "레이", "리즈"),
                 () -> assertThat(response.pollOptions()).allSatisfy(option -> {
                     assertThat(option.voteCount()).isZero();

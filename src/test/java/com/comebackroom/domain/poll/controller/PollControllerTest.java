@@ -1,8 +1,7 @@
 package com.comebackroom.domain.poll.controller;
 
 import com.comebackroom.domain.poll.dto.request.CreatePollRequest;
-import com.comebackroom.domain.poll.dto.response.CreatePollResponse;
-import com.comebackroom.domain.poll.dto.response.CreatePollResponse.PollOptionResponse;
+import com.comebackroom.domain.poll.dto.response.PollResponse;
 import com.comebackroom.domain.poll.enums.PollStatus;
 import com.comebackroom.domain.poll.exception.PollErrorCode;
 import com.comebackroom.domain.poll.service.PollService;
@@ -69,14 +68,14 @@ class PollControllerTest {
     @DisplayName("투표를 생성하면 201과 생성된 투표 정보를 반환한다")
     void createPoll() throws Exception {
         // given
-        CreatePollResponse response = new CreatePollResponse(
+        PollResponse response = new PollResponse(
                 1L,
                 "엔딩포즈 제일 잘 한 멤버는?",
                 PollStatus.ONGOING,
                 0,
                 List.of(
-                        new PollOptionResponse(10L, "원영", 0, false),
-                        new PollOptionResponse(11L, "유진", 0, false)
+                        new PollResponse.PollOptionResponse(10L, "원영", 0, false),
+                        new PollResponse.PollOptionResponse(11L, "유진", 0, false)
                 ),
                 LocalDateTime.of(2026, 11, 19, 21, 10),
                 LocalDateTime.of(2026, 11, 19, 21, 0)
