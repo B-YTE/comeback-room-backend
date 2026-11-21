@@ -4,4 +4,6 @@ import com.comebackroom.domain.watchingroom.entity.RoomParticipant;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RoomParticipantRepository extends JpaRepository<RoomParticipant, Long> {
+
+    boolean existsByRoomIdAndMemberId(Long roomId, Long memberId);
 }
