@@ -2,12 +2,10 @@ package com.comebackroom.domain.poll.entity;
 
 import com.comebackroom.domain.poll.enums.PollStatus;
 import com.comebackroom.domain.watchingroom.entity.WatchingRoom;
-import com.comebackroom.global.entity.BaseCreatedEntity;
 import com.comebackroom.global.exception.BusinessException;
 import com.comebackroom.global.exception.GlobalErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -18,7 +16,7 @@ import java.util.*;
 @Table(name = "polls")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Poll extends BaseCreatedEntity {
+public class Poll {
 
     public static final int MIN_OPTION_COUNT = 2;
     public static final int MAX_OPTION_COUNT = 4;
@@ -40,6 +38,9 @@ public class Poll extends BaseCreatedEntity {
     @Column(name = "status", length = 50, nullable = false)
     private PollStatus status;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
@@ -47,11 +48,12 @@ public class Poll extends BaseCreatedEntity {
     @OrderBy("id ASC")
     private List<PollOption> pollOptionList = new ArrayList<>();
 
-    private Poll(WatchingRoom room, String question, LocalDateTime expiresAt) {
+    private Poll(WatchingRoom room, String question, LocalDateTime now, int durationMinutes) {
         this.room = room;
         this.question = question;
         this.status = PollStatus.ONGOING;
-        this.expiresAt = expiresAt;
+        this.createdAt = now;
+        this.expiresAt = now.plusMinutes(durationMinutes);
     }
 
     public static Poll create(WatchingRoom room, String question, List<String> optionContents,
@@ -59,7 +61,7 @@ public class Poll extends BaseCreatedEntity {
         validateDurationMinutes(durationMinutes);
         validateOptionContents(optionContents);
 
-        Poll poll = new Poll(room, question, now.plusMinutes(durationMinutes));
+        Poll poll = new Poll(room, question, now, durationMinutes);
         for (String content : optionContents) {
             poll.pollOptionList.add(PollOption.builder()
                     .poll(poll)

@@ -25,13 +25,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.within;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -98,7 +96,7 @@ class PollCreateIntegrationTest {
                 () -> assertThat(savedPoll.getStatus()).isEqualTo(PollStatus.ONGOING),
                 () -> assertThat(savedPoll.getCreatedAt()).isNotNull(),
                 () -> assertThat(savedPoll.getExpiresAt())
-                        .isCloseTo(savedPoll.getCreatedAt().plusMinutes(10), within(1, ChronoUnit.SECONDS)),
+                        .isEqualTo(savedPoll.getCreatedAt().plusMinutes(10)),
                 () -> assertThat(pollOptionList)
                         .extracting(PollOption::getContent)
                         .containsExactly("원영", "유진", "레이")

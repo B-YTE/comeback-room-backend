@@ -7,6 +7,9 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  jackson:
+    deserialization:
+      accept-float-as-int: false
 
 management:
   endpoints:

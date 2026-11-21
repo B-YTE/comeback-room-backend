@@ -209,6 +209,12 @@ class PollControllerTest {
                         """),
                 Arguments.of("마감 시간 누락", """
                         {"question": "질문", "pollOptions": [{"content": "원영"}, {"content": "유진"}]}
+                        """),
+                Arguments.of("마감 시간이 소수(60.9)", """
+                        {"question": "질문", "pollOptions": [{"content": "원영"}, {"content": "유진"}], "durationMinutes": 60.9}
+                        """),
+                Arguments.of("마감 시간이 소수 형태의 정수(10.0)", """
+                        {"question": "질문", "pollOptions": [{"content": "원영"}, {"content": "유진"}], "durationMinutes": 10.0}
                         """)
         );
     }
