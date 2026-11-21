@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -85,8 +86,12 @@ class PollServiceTest {
                 () -> assertThat(response.question()).isEqualTo(QUESTION),
                 () -> assertThat(response.status()).isEqualTo(PollStatus.ONGOING),
                 () -> assertThat(response.totalVoteCount()).isZero(),
+                () -> assertThat(response.createdAt())
+                        .isEqualTo(LocalDateTime.of(2026, 11, 19, 21, 0)),
                 () -> assertThat(response.expiresAt())
                         .isEqualTo(LocalDateTime.of(2026, 11, 19, 21, 10)),
+                () -> assertThat(Duration.between(savedPoll.getCreatedAt(), savedPoll.getExpiresAt()))
+                        .isEqualTo(Duration.ofMinutes(DURATION_MINUTES)),
                 () -> assertThat(response.pollOptions())
                         .extracting(PollOptionResponse::content)
                         .containsExactly("원영", "유진", "레이", "리즈"),
