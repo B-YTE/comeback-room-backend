@@ -3,6 +3,7 @@ package com.comebackroom.domain.poll.service;
 import com.comebackroom.domain.member.entity.Member;
 import com.comebackroom.domain.poll.dto.request.CreatePollRequest;
 import com.comebackroom.domain.poll.dto.request.CreatePollRequest.PollOptionRequest;
+import com.comebackroom.domain.poll.dto.response.PollListResponse;
 import com.comebackroom.domain.poll.dto.response.PollResponse;
 import com.comebackroom.domain.poll.entity.Poll;
 import com.comebackroom.domain.poll.enums.PollStatus;
@@ -186,11 +187,89 @@ class PollServiceTest {
         verify(pollRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("투표가 없으면 득표 집계 쿼리를 호출하지 않고 빈 목록을 반환한다")
+    void skipVoteCountWhenNoPolls() {
+        // given
+        given(watchingRoomRepository.findById(ROOM_ID)).willReturn(Optional.of(createRoom(HOST_ID)));
+        given(pollRepository.findAllWithOptionsByRoomId(ROOM_ID)).willReturn(List.of());
+
+        // when
+        PollListResponse response = pollService.getPolls(ROOM_ID, OTHER_MEMBER_ID);
+
+        // then
+        assertThat(response.polls()).isEmpty();
+        verify(pollVoteRepository, never()).countByPollIds(any(), any());
+    }
+
+    @Test
+    @DisplayName("공개방이면 참여 기록을 조회하지 않는다")
+    void skipParticipantCheckInPublicRoom() {
+        // given
+        given(watchingRoomRepository.findById(ROOM_ID)).willReturn(Optional.of(createRoom(HOST_ID)));
+        given(pollRepository.findAllWithOptionsByRoomId(ROOM_ID)).willReturn(List.of());
+
+        // when
+        pollService.getPolls(ROOM_ID, OTHER_MEMBER_ID);
+
+        // then
+        verify(roomParticipantRepository, never()).existsByRoomIdAndMemberId(any(), any());
+    }
+
+    @Test
+    @DisplayName("비공개방의 방장이면 참여 기록을 조회하지 않는다")
+    void skipParticipantCheckForHostOfPrivateRoom() {
+        // given
+        given(watchingRoomRepository.findById(ROOM_ID)).willReturn(Optional.of(createRoom(HOST_ID, false)));
+        given(pollRepository.findAllWithOptionsByRoomId(ROOM_ID)).willReturn(List.of());
+
+        // when
+        pollService.getPolls(ROOM_ID, HOST_ID);
+
+        // then
+        verify(roomParticipantRepository, never()).existsByRoomIdAndMemberId(any(), any());
+    }
+
+    @Test
+    @DisplayName("비공개방에 참여 기록이 없으면 403 예외가 나고 투표를 조회하지 않는다")
+    void failWhenNotParticipantOfPrivateRoom() {
+        // given
+        given(watchingRoomRepository.findById(ROOM_ID)).willReturn(Optional.of(createRoom(HOST_ID, false)));
+        given(roomParticipantRepository.existsByRoomIdAndMemberId(ROOM_ID, OTHER_MEMBER_ID)).willReturn(false);
+
+        // when
+        assertThatThrownBy(() -> pollService.getPolls(ROOM_ID, OTHER_MEMBER_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", PollErrorCode.NOT_WATCHING_ROOM_PARTICIPANT);
+
+        // then
+        verify(pollRepository, never()).findAllWithOptionsByRoomId(any());
+    }
+
+    @Test
+    @DisplayName("비공개방 참여자는 투표를 조회할 수 있다")
+    void getPollsWhenParticipantOfPrivateRoom() {
+        // given
+        given(watchingRoomRepository.findById(ROOM_ID)).willReturn(Optional.of(createRoom(HOST_ID, false)));
+        given(roomParticipantRepository.existsByRoomIdAndMemberId(ROOM_ID, OTHER_MEMBER_ID)).willReturn(true);
+        given(pollRepository.findAllWithOptionsByRoomId(ROOM_ID)).willReturn(List.of());
+
+        // when
+        PollListResponse response = pollService.getPolls(ROOM_ID, OTHER_MEMBER_ID);
+
+        // then
+        assertThat(response.polls()).isEmpty();
+    }
+
     private WatchingRoom createRoom(Long hostId) {
+        return createRoom(hostId, true);
+    }
+
+    private WatchingRoom createRoom(Long hostId, boolean isPublic) {
         Member host = Member.createLocalMember("host123", "{bcrypt}encoded-password", "host@example.com");
         ReflectionTestUtils.setField(host, "id", hostId);
 
-        return WatchingRoom.builder()
+        WatchingRoom room = WatchingRoom.builder()
                 .host(host)
                 .title("컴백 같이 보기")
                 .videoUrl("https://www.youtube.com/watch?v=example")
@@ -198,10 +277,13 @@ class PollServiceTest {
                 .videoThumbnailUrl("https://img.youtube.com/vi/example/0.jpg")
                 .videoDurationSeconds(240)
                 .maxParticipants(100)
-                .isPublic(true)
-                .privateCode(null)
+                .isPublic(isPublic)
+                .privateCode(isPublic ? null : "102030")
                 .startAt(LocalDateTime.of(2026, 11, 19, 20, 0))
                 .build();
+
+        ReflectionTestUtils.setField(room, "id", ROOM_ID);
+        return room;
     }
 
     private CreatePollRequest createRequest(String... content) {
