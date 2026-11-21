@@ -45,23 +45,12 @@ class PollCreateIntegrationTest {
 
     private static final String CREATE_POL_URL = "/api/v1/watching-rooms/{roomId}/polls";
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-
-    @Autowired
-    private MemberRepository memberRepository;
-
-    @Autowired
-    private WatchingRoomRepository watchingRoomRepository;
-
-    @Autowired
-    private PollRepository pollRepository;
-
-    @Autowired
-    private PollOptionRepository pollOptionRepository;
+    @Autowired private MockMvc mockMvc;
+    @Autowired private JwtTokenProvider jwtTokenProvider;
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private WatchingRoomRepository watchingRoomRepository;
+    @Autowired private PollRepository pollRepository;
+    @Autowired private PollOptionRepository pollOptionRepository;
 
     private Member host;
     private WatchingRoom room;

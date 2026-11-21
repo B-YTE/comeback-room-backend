@@ -33,20 +33,11 @@ class PollListQueryTest {
 
     private static final LocalDateTime CREATE_TIME = LocalDateTime.of(2026, 11, 20, 18, 0);
 
-    @Autowired
-    private PollRepository pollRepository;
-
-    @Autowired
-    private PollVoteRepository pollVoteRepository;
-
-    @Autowired
-    private MemberRepository memberRepository;
-
-    @Autowired
-    private WatchingRoomRepository watchingRoomRepository;
-
-    @Autowired
-    private EntityManager entityManager;
+    @Autowired private PollRepository pollRepository;
+    @Autowired private PollVoteRepository pollVoteRepository;
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private WatchingRoomRepository watchingRoomRepository;
+    @Autowired private EntityManager entityManager;
 
     private Member host;
     private Member voter;
