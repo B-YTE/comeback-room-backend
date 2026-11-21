@@ -16,7 +16,6 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import javax.crypto.SecretKey;
-import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(JwtProperties.class)
@@ -50,11 +49,6 @@ public class JwtConfig {
         );
         jwtDecoder.setJwtValidator(validator);
         return jwtDecoder;
-    }
-
-    @Bean
-    public Clock jwtClock() {
-        return Clock.systemUTC();
     }
 
     private static boolean isValidMemberId(String subject) {
