@@ -122,6 +122,12 @@ public class SecurityConfig {
                 "/api/v1/oauth2/authorization/google"
         ));
         requestMatcherList.add(PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/ws/watching-rooms"));
+        requestMatcherList.add(PathPatternRequestMatcher.pathPattern(
+                HttpMethod.GET, "/api/v1/auth/login-id/availability"
+        ));
+        requestMatcherList.add(PathPatternRequestMatcher.pathPattern(
+                HttpMethod.GET, "/api/v1/auth/nickname/availability"
+        ));
 
         for (String endpoint : PUBLIC_AUTH_POST_ENDPOINTS) {
             requestMatcherList.add(PathPatternRequestMatcher.pathPattern(HttpMethod.POST, endpoint));

@@ -116,7 +116,7 @@ public class EmailVerificationService {
         return LocalDateTime.ofInstant(clock.instant(), APPLICATION_ZONE_ID);
     }
 
-    private static String normalizeEmail(String email) {
+    static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
