@@ -75,6 +75,13 @@ public class Poll {
         return Collections.unmodifiableList(pollOptionList);
     }
 
+    public PollStatus currentStatus(LocalDateTime now) {
+        if (now.isBefore(expiresAt)) {
+            return PollStatus.ONGOING;
+        }
+        return PollStatus.ENDED;
+    }
+
     private static void validateDurationMinutes(int durationMinutes) {
         if (durationMinutes < MIN_DURATION_MINUTES || durationMinutes > MAX_DURATION_MINUTES) {
             throw new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE);
