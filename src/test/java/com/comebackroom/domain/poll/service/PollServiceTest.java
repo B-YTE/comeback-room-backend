@@ -8,6 +8,7 @@ import com.comebackroom.domain.poll.dto.response.PollResponse;
 import com.comebackroom.domain.poll.entity.Poll;
 import com.comebackroom.domain.poll.enums.PollStatus;
 import com.comebackroom.domain.poll.exception.PollErrorCode;
+import com.comebackroom.domain.poll.repository.PollOptionRepository;
 import com.comebackroom.domain.poll.repository.PollRepository;
 import com.comebackroom.domain.poll.repository.PollVoteRepository;
 import com.comebackroom.domain.watchingroom.entity.WatchingRoom;
@@ -60,6 +61,9 @@ class PollServiceTest {
     private PollVoteRepository pollVoteRepository;
 
     @Mock
+    private PollOptionRepository pollOptionRepository;
+
+    @Mock
     private WatchingRoomRepository watchingRoomRepository;
 
     @Mock
@@ -70,7 +74,7 @@ class PollServiceTest {
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(NOW, TimeZoneConfig.APPLICATION_ZONE_ID);
-        pollService = new PollService(pollRepository, pollVoteRepository, watchingRoomRepository,
+        pollService = new PollService(pollRepository, pollVoteRepository, pollOptionRepository, watchingRoomRepository,
                 roomParticipantRepository, fixedClock);
     }
 

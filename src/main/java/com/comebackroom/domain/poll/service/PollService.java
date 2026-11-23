@@ -5,7 +5,9 @@ import com.comebackroom.domain.poll.dto.request.CreatePollRequest;
 import com.comebackroom.domain.poll.dto.response.PollListResponse;
 import com.comebackroom.domain.poll.dto.response.PollResponse;
 import com.comebackroom.domain.poll.entity.Poll;
+import com.comebackroom.domain.poll.enums.PollStatus;
 import com.comebackroom.domain.poll.exception.PollErrorCode;
+import com.comebackroom.domain.poll.repository.PollOptionRepository;
 import com.comebackroom.domain.poll.repository.PollRepository;
 import com.comebackroom.domain.poll.repository.PollVoteRepository;
 import com.comebackroom.domain.watchingroom.entity.WatchingRoom;
@@ -33,6 +35,7 @@ public class PollService {
 
     private final PollRepository pollRepository;
     private final PollVoteRepository pollVoteRepository;
+    private final PollOptionRepository pollOptionRepository;
     private final WatchingRoomRepository watchingRoomRepository;
     private final RoomParticipantRepository roomParticipantRepository;
     private final Clock clock;
@@ -40,7 +43,7 @@ public class PollService {
     @Transactional
     public PollResponse createPoll(Long roomId, Long memberId, CreatePollRequest request) {
         WatchingRoom room = getWatchingRoom(roomId);
-        validateHost(room, memberId);
+        validateHost(room, memberId, PollErrorCode.POLL_CREATE_FORBIDDEN);
         validateRoomNotEnded(room);
 
         LocalDateTime now = LocalDateTime.now(clock);
@@ -77,14 +80,32 @@ public class PollService {
         return PollListResponse.of(polls, voteCounts, LocalDateTime.now(clock));
     }
 
+    @Transactional
+    public void deletePoll(Long pollId, Long memberId) {
+        Poll poll = getPoll(pollId);
+        validateHost(poll.getRoom(), memberId, PollErrorCode.POLL_DELETE_FORBIDDEN);
+        validateRoomNotEnded(poll.getRoom());
+        validatePollNotEnded(poll);
+
+        pollVoteRepository.bulkDeleteByPollId(poll.getId());
+        pollOptionRepository.bulkDeleteByPollId(poll.getId());
+        pollRepository.delete(poll);
+        log.info("투표 삭제 완료 pollId={}, roomId={}, memberId={}", poll.getId(), poll.getRoom().getId(), memberId);
+    }
+
     private WatchingRoom getWatchingRoom(Long roomId) {
         return watchingRoomRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(WatchingRoomErrorCode.WATCHING_ROOM_NOT_FOUND));
     }
 
-    private void validateHost(WatchingRoom room, Long memberId) {
+    private Poll getPoll(Long pollId) {
+        return pollRepository.findWithRoomById(pollId)
+                .orElseThrow(() -> new BusinessException(PollErrorCode.POLL_NOT_FOUND));
+    }
+
+    private void validateHost(WatchingRoom room, Long memberId, PollErrorCode errorCode) {
         if (!room.getHost().getId().equals(memberId)) {
-            throw new BusinessException(PollErrorCode.POLL_CREATE_FORBIDDEN);
+            throw new BusinessException(errorCode);
         }
     }
 
@@ -105,5 +126,11 @@ public class PollService {
             return;
         }
         throw new BusinessException(PollErrorCode.NOT_WATCHING_ROOM_PARTICIPANT);
+    }
+
+    private void validatePollNotEnded(Poll poll) {
+        if (poll.currentStatus(LocalDateTime.now(clock)) == PollStatus.ENDED) {
+            throw new BusinessException(PollErrorCode.POLL_ALREADY_ENDED);
+        }
     }
 }
