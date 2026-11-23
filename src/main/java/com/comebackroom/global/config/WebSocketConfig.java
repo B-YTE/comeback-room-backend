@@ -4,9 +4,11 @@ import com.comebackroom.global.security.config.CorsProperties;
 import com.comebackroom.global.websocket.handler.StompErrorHandler;
 import com.comebackroom.global.websocket.interceptor.StompAuthChannelInterceptor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
@@ -22,6 +24,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final String BROKER_DESTINATION_PREFIX = "/sub"; // 서버 -> 구독자로 보내는 메시지 접두어
 
     private static final int TIME_TO_FIRST_MESSAGE_MS = 10_000; // 연결 후 첫 STOMP 프레임을 기다리는 시간(ms, 10초)
+    private static final long HEARTBEAT_INTERVAL_MS = 10_000;
 
     private final CorsProperties corsProperties;
     private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
@@ -42,7 +45,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // '/pub' - 서버 코드(@MessageMapping)가 처리
         registry.setApplicationDestinationPrefixes(APPLICATION_DESTINATION_PREFIX);
         // '/sub' - 브로커가 구독자 목록 관리 및 구독자에게 메시지 전달
-        registry.enableSimpleBroker(BROKER_DESTINATION_PREFIX);
+        registry.enableSimpleBroker(BROKER_DESTINATION_PREFIX)
+                .setHeartbeatValue(new long[]{HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS})
+                .setTaskScheduler(heartbeatTaskScheduler());
     }
 
     // 클라이언트 -> 서버로 들어오는 프레임의 통로(clientInboundChannel)에 인터셉터 등록
@@ -55,6 +60,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
         // (새 연결이 맺어질 때) 연결이 열린 뒤 시간 안에 STOMP 프레임을 한 번도 보내지 않은 연결을 닫음
         registration.setTimeToFirstMessage(TIME_TO_FIRST_MESSAGE_MS);
+    }
+
+    @Bean(name = "heartbeatTaskScheduler")
+    public ThreadPoolTaskScheduler heartbeatTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("ws-heartbeat");
+        return scheduler;
     }
 
 }
