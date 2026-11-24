@@ -30,7 +30,7 @@ public class RoomPresenceEventListener {
 
     public RoomPresenceEventListener(
             RoomPresenceStore presenceStore,
-            @Qualifier("presenceTaskScheduler")TaskScheduler presenceTaskScheduler
+            @Qualifier("presenceTaskScheduler") TaskScheduler presenceTaskScheduler
             ) {
         this.presenceStore = presenceStore;
         this.presenceTaskScheduler = presenceTaskScheduler;

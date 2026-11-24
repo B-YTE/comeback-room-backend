@@ -66,7 +66,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public ThreadPoolTaskScheduler heartbeatTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("ws-heartbeat");
+        scheduler.setThreadNamePrefix("ws-heartbeat-");
         return scheduler;
     }
 
