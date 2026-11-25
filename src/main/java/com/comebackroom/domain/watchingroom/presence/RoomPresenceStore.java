@@ -25,7 +25,7 @@ public class RoomPresenceStore {
 
     // 탭 연결 스크립트 - 회원이 방에 새로 입장 시 1 반환 (이미 다른 탭으로 입장해 있었을 경우 0)
     // KEYS[1]: 이 회원의 탭 ZSET / KEYS[2]: 방의 회원 ZSET / KEYS[3]: 방의 예약 ZSET
-    // ARGV: [1]=지금(ms) [2]=기준시각 (지금 - LEASE) [3]=sessionId [4]=memberId [5]=키 수명(ms)
+    // ARGV: [1]=지금(ms) [2]=기준시각 (지금 - LEASE) [3]=tabId [4]=memberId [5]=키 수명(ms)
     private static final RedisScript<Long> CONNECT_SCRIPT = RedisScript.of("""
             -- 회원의 탭 중 점수가 기준 시각 미만인 것을 삭제 (죽은 탭 청소)
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[2])
@@ -45,7 +45,7 @@ public class RoomPresenceStore {
 
     // 하트비트 스크립트 - 갱신 시 1, 이미 정리된(존재하지 않는) 탭일 시 0 반환
     // KEYS[1]: 이 회원의 탭 ZSET / KEYS[2]: 방의 회원 ZSET
-    // ARGV: [1]=지금(ms) [2]=기준시각 (지금 - LEASE) [3]=sessionId [4]=memberId [5]=키 수명(ms)
+    // ARGV: [1]=지금(ms) [2]=기준시각 (지금 - LEASE) [3]=tabId [4]=memberId [5]=키 수명(ms)
     private static final RedisScript<Long> HEARTBEAT_SCRIPT = RedisScript.of("""
             -- 회원의 탭 중 점수가 기준 시각 미만인 것을 삭제 (죽은 탭 청소)
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[2])
@@ -64,7 +64,7 @@ public class RoomPresenceStore {
     // 탭 해제 스크립트 - 회원이 방에서 완전히 나간 경우 1
     // (다른 탭이 남아있어 여전히 방 접속 상태거나 존재하지 않는 탭인 경우 0) 반환
     // KEYS[1]: 이 회원의 탭 ZSET / KEYS[2]: 방의 회원 ZSET
-    // ARGV: [1]=기준시각 [2]=sessionId [3]=memberId
+    // ARGV: [1]=기준시각 [2]=tabId [3]=memberId
     private static final RedisScript<Long> DISCONNECT_SCRIPT = RedisScript.of("""
             -- 회원의 탭 중 점수가 기준 시각 미만인 것을 삭제 (죽은 탭 청소)
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[1])
@@ -107,8 +107,8 @@ public class RoomPresenceStore {
 
 
     // 탭 연결 - 회원이 방에 새로 입장했으면 true, 이미 다른 탭으로 입장해 있었으면 false
-    public boolean connect(Long roomId, Long memberId, String sessionId) {
-        Objects.requireNonNull(sessionId, "sessionId는 null일 수 없습니다.");
+    public boolean connect(Long roomId, Long memberId, String tabId) {
+        Objects.requireNonNull(tabId, "tabId는 null일 수 없습니다.");
         long now = clock.millis();
         String sessionsKey = createSessionsKey(roomId, memberId);
         String membersKey = createMembersKey(roomId);
@@ -120,16 +120,17 @@ public class RoomPresenceStore {
                 List.of(sessionsKey, membersKey, reservedKey),
                 String.valueOf(now),                    // ARGV[1]: 지금(ms)
                 String.valueOf(now - LEASE.toMillis()), // ARGV[2]: 기준시각 (지금 - LEASE)
-                sessionId,                              // ARGV[3]: sessionId
+                tabId,                              // ARGV[3]: tabId
                 String.valueOf(memberId),               // ARGV[4]: memberId
                 String.valueOf(KEY_TTL.toMillis())      // ARGV[5]: 키 수명(ms)
         );
         return toBoolean(result);
     }
+    
 
     // 하트비트 - 갱신했으면 true, 이미 정리된(모르는) 탭이면 false
-    public boolean heartbeat(Long roomId, Long memberId, String sessionId) {
-        Objects.requireNonNull(sessionId, "sessionId는 null일 수 없습니다.");
+    public boolean heartbeat(Long roomId, Long memberId, String tabId) {
+        Objects.requireNonNull(tabId, "tabId는 null일 수 없습니다.");
         long now = clock.millis();
         String sessionsKey = createSessionsKey(roomId, memberId);
         String membersKey = createMembersKey(roomId);
@@ -139,7 +140,7 @@ public class RoomPresenceStore {
                 List.of(sessionsKey, membersKey),       // KEYS[1]: 이 회원의 탭 ZSET, KEYS[2]:방의 회원 ZSET
                 String.valueOf(now),                    // ARGV[1]: 지금(ms)
                 String.valueOf(now - LEASE.toMillis()), // ARGV[2]: 기준시각 (지금 - LEASE)
-                sessionId,                              // ARGV[3]: sessionId
+                tabId,                              // ARGV[3]: tabId
                 String.valueOf(memberId),               // ARGV[4]: memberId
                 String.valueOf(KEY_TTL.toMillis())      // ARGV[5]: 키 수명(ms)
         );
@@ -147,8 +148,8 @@ public class RoomPresenceStore {
     }
 
     // 탭 해제 - 회원이 방에서 완전히 나갔으면 true, 다른 탭이 남아있거나 모르는 탭이면 false
-    public boolean disconnect(Long roomId, Long memberId, String sessionId) {
-        Objects.requireNonNull(sessionId, "sessionId는 null일 수 없습니다.");
+    public boolean disconnect(Long roomId, Long memberId, String tabId) {
+        Objects.requireNonNull(tabId, "tabId는 null일 수 없습니다.");
         long cutoff = clock.millis() - LEASE.toMillis();
         String sessionsKey = createSessionsKey(roomId, memberId);
         String membersKey = createMembersKey(roomId);
@@ -157,7 +158,7 @@ public class RoomPresenceStore {
                 DISCONNECT_SCRIPT,
                 List.of(sessionsKey, membersKey),       // KEYS[1]: 이 회원의 탭 ZSET, KEYS[2]:방의 회원 ZSET
                 String.valueOf(cutoff),                 // ARGV[1]: 기준시각
-                sessionId,                              // ARGV[2]: sessionId
+                tabId,                              // ARGV[2]: tabId
                 String.valueOf(memberId)                // ARGV[3]: memberId
         );
         return toBoolean(result);
