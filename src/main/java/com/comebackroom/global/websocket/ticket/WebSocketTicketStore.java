@@ -5,6 +5,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,10 +18,16 @@ public class WebSocketTicketStore {
 
     private final StringRedisTemplate redisTemplate;
 
-    public String issue(Long memberId, Long roomId) {
+    public String issue(Long memberId, Long roomId, String tabId) {
+        Objects.requireNonNull(memberId, "memberId는 null일 수 없습니다.");
+        Objects.requireNonNull(roomId, "roomId는 null일 수 없습니다.");
+        Objects.requireNonNull(tabId, "tabId는 null일 수 없습니다.");
+
         String ticket = generateTicket();
         redisTemplate.opsForValue().set(
-                KEY_PREFIX + ticket, memberId + ":" + roomId, TTL
+                KEY_PREFIX + ticket,
+                memberId + ":" + roomId + ":" + tabId,
+                TTL
         );
         return ticket;
     }
@@ -30,8 +37,10 @@ public class WebSocketTicketStore {
         if (value == null) {
             return Optional.empty();
         }
-        String[] parts = value.split(":");
-        return Optional.of(new TicketInfo(Long.valueOf(parts[0]), Long.valueOf(parts[1])));
+        String[] parts = value.split(":", 3);
+        return Optional.of(
+                new TicketInfo(Long.valueOf(parts[0]), Long.valueOf(parts[1]), parts[2])
+        );
     }
 
     private String generateTicket() {

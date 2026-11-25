@@ -22,6 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 public class WebSocketTicketStoreTest {
 
+    private static final Long MEMBER_ID = 1L;
+    private static final Long ROOM_ID = 1L;
+    private static final String TAB_ID = "tab-1";
+
     @Container
     static GenericContainer<?> redis =
             new GenericContainer<>(DockerImageName.parse("redis:7"))
@@ -48,16 +52,16 @@ public class WebSocketTicketStoreTest {
     @Test
     @DisplayName("발급된 ticket으로 회원과 방 정보를 조회한다")
     void useTicket_returnsMemberAndRoom() {
-        String ticket = ticketStore.issue(1L, 1L);
+        String ticket = ticketStore.issue(MEMBER_ID, ROOM_ID, TAB_ID);
         Optional<TicketInfo> result = ticketStore.consume(ticket);
 
-        assertThat(result).contains(new TicketInfo(1L, 1L));
+        assertThat(result).contains(new TicketInfo(MEMBER_ID, ROOM_ID, TAB_ID));
     }
 
     @Test
     @DisplayName("이미 사용된 ticket은 다시 사용할 수 없다")
     void useTicketTwice_isRejected() {
-        String ticket = ticketStore.issue(1L, 1L);
+        String ticket = ticketStore.issue(MEMBER_ID, ROOM_ID, TAB_ID);
         ticketStore.consume(ticket);
 
         assertThat(ticketStore.consume(ticket)).isEmpty();
@@ -67,7 +71,7 @@ public class WebSocketTicketStoreTest {
     @Timeout(10)
     @DisplayName("동일한 ticket을 동시에 사용하면 한 번만 성공한다")
     void useTicketConcurrently_succeedsOnlyOnce() throws Exception {
-        String ticket = ticketStore.issue(1L, 1L);
+        String ticket = ticketStore.issue(MEMBER_ID, ROOM_ID, TAB_ID);
         int threads = 50; // 50개의 스레드가 동시에 티켓 사용 시도
 
         ExecutorService pool = Executors.newFixedThreadPool(threads);
