@@ -87,6 +87,10 @@ public class WatchingRoom extends BaseTimeEntity {
 
     }
 
+    public boolean isHost(Long memberId) {
+        return host.getId().equals(memberId);
+    }
+
     public void start() {
         if (status != RoomStatus.SCHEDULED) {
             throw new IllegalStateException("SCHEDULED 상태의 방만 시작할 수 있습니다. 현재: " + status);
@@ -103,6 +107,14 @@ public class WatchingRoom extends BaseTimeEntity {
 
     public boolean isDeletable() {
         return status == RoomStatus.SCHEDULED;
+    }
+
+    public boolean isLiveAt(LocalDateTime now) {
+        return !now.isBefore(startAt) && now.isBefore(endedAt);
+    }
+
+    public boolean isJoinable(LocalDateTime now) {
+        return !now.isBefore(startAt.minusMinutes(30)) && now.isBefore(endedAt);
     }
 
 }
