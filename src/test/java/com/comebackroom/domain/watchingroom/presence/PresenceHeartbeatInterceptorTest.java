@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.comebackroom.global.websocket.interceptor.StompAuthChannelInterceptor.ROOM_ID_ATTRIBUTE;
+import static com.comebackroom.global.websocket.interceptor.StompAuthChannelInterceptor.TAB_ID_ATTRIBUTE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -29,7 +30,7 @@ public class PresenceHeartbeatInterceptorTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long ROOM_ID = 100L;
-    private static final String SESSION_ID = "session-1";
+    private static final String TAB_ID = "tab-1";
 
     @Mock
     private RoomPresenceStore presenceStore;
@@ -42,7 +43,7 @@ public class PresenceHeartbeatInterceptorTest {
     @Test
     @DisplayName("스토어가 모르는 세션의 하트비트는 거부한다")
     void heartbeatOfUnknownSession_isRejected() {
-        given(presenceStore.heartbeat(ROOM_ID, MEMBER_ID, SESSION_ID)).willReturn(false);
+        given(presenceStore.heartbeat(ROOM_ID, MEMBER_ID, TAB_ID)).willReturn(false);
         Message<?> message = heartbeatMessage();
 
         assertThatThrownBy(() -> interceptor.preSend(message, channel))
@@ -53,7 +54,7 @@ public class PresenceHeartbeatInterceptorTest {
     @Test
     @DisplayName("Redis 장애로 갱신에 실패해도 연결은 끊지 않고 유지한다")
     void heartbeatWhenStoreFails_keepsConnection() {
-        given(presenceStore.heartbeat(ROOM_ID, MEMBER_ID, SESSION_ID))
+        given(presenceStore.heartbeat(ROOM_ID, MEMBER_ID, TAB_ID))
                 .willThrow(new IllegalStateException("redis down"));
         Message<?> message = heartbeatMessage();
 
@@ -80,8 +81,8 @@ public class PresenceHeartbeatInterceptorTest {
     private Message<?> messageOf(StompHeaderAccessor accessor) {
         Map<String, Object> sessionAttributes = new HashMap<>();
         sessionAttributes.put(ROOM_ID_ATTRIBUTE, ROOM_ID);
+        sessionAttributes.put(TAB_ID_ATTRIBUTE, TAB_ID);
 
-        accessor.setSessionId(SESSION_ID);
         accessor.setUser(new MemberPrincipal(MEMBER_ID));
         accessor.setSessionAttributes(sessionAttributes);
         accessor.setLeaveMutable(true);

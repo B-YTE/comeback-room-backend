@@ -26,8 +26,8 @@ public class RoomPresenceStoreTest {
 
     private static final Instant START_TIME = Instant.parse("2026-11-01T00:00:00Z");
     private static final Long MEMBER_ID = 1L;
-    private static final String TAB_A = "session-a";
-    private static final String TAB_B = "session-b";
+    private static final String TAB_A = "tab-a";
+    private static final String TAB_B = "tab-b";
     private static final int REFRESH_ROUNDS = 200;
     private static final int MAX_PARTICIPANTS = 5;
     private static final Duration HOLD = Duration.ofSeconds(10);
@@ -52,10 +52,12 @@ public class RoomPresenceStoreTest {
                 redis.getHost(), redis.getMappedPort(6379));
         connectionFactory.afterPropertiesSet();
     }
+
     @AfterAll
     static void disconnectRedis() {
         connectionFactory.destroy();
     }
+
     @BeforeEach
     void setUp() {
         store = new RoomPresenceStore(
@@ -224,16 +226,16 @@ public class RoomPresenceStoreTest {
     void reserveConcurrently_grantsOnlyRemainingSeats() throws Exception {
         // given
         for (long memberId = 101; memberId <= 104; memberId++) {
-            store.connect(roomId, memberId, "session-" + memberId);
+            store.connect(roomId, memberId, "tab-" + memberId);
         }
         AtomicInteger granted = new AtomicInteger();
         Runnable[] tasks = LongStream.rangeClosed(1, 100)
                 .<Runnable>mapToObj(memberId ->
                         () -> {
-                    if (store.reserve(roomId, memberId, MAX_PARTICIPANTS, HOLD)) {
-                        granted.incrementAndGet();
-                    }
-                })
+                            if (store.reserve(roomId, memberId, MAX_PARTICIPANTS, HOLD)) {
+                                granted.incrementAndGet();
+                            }
+                        })
                 .toArray(Runnable[]::new);
 
         // when
@@ -248,14 +250,14 @@ public class RoomPresenceStoreTest {
     void reserveByConnectedMember_doesNotTakeExtraSeat() {
         // given
         for (long memberId = 1; memberId <= MAX_PARTICIPANTS; memberId++) {
-            store.connect(roomId, memberId, "session-" + memberId);
+            store.connect(roomId, memberId, "tab-" + memberId);
         }
 
         // when & then
         assertThat(store.reserve(roomId, 1L, MAX_PARTICIPANTS, HOLD)).isTrue();
         assertThat(store.reserve(roomId, 99L, MAX_PARTICIPANTS, HOLD)).isFalse();
 
-        store.disconnect(roomId, 2L, "session-2");
+        store.disconnect(roomId, 2L, "tab-2");
         assertThat(store.reserve(roomId, 99L, MAX_PARTICIPANTS, HOLD)).isTrue();
     }
 
