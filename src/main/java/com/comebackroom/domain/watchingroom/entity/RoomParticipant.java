@@ -9,7 +9,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "room_participants")
+@Table(
+        name = "room_participants",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_room_participants_room_member",
+                columnNames = {"room_id", "member_id"}
+        )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RoomParticipant extends BaseCreatedEntity {
