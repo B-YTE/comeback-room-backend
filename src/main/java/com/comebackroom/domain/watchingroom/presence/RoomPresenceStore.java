@@ -179,6 +179,14 @@ public class RoomPresenceStore {
         return memberIds.stream().map(Long::valueOf).toList();
     }
 
+    // 방에 접속 중인지 확인 - 마지막 확인이 LEASE 안이면 true
+    public boolean isConnected(Long roomId, Long memberId) {
+        Objects.requireNonNull(memberId, "memberId는 null일 수 없습니다.");
+        Double lastSeen = redisTemplate.opsForZSet()
+                .score(createMembersKey(roomId), String.valueOf(memberId));
+        return lastSeen != null && lastSeen >= calculateCutoff();
+    }
+
     // 자리 예약 - 통과(이미 접속 중, 이미 예약 중, 새로 예약)하면 true, 정원이 가득 차 실패하면 false
     public boolean reserve(Long roomId, Long memberId, int maxParticipants, Duration hold) {
         Objects.requireNonNull(memberId, "memberId는 null일 수 없습니다.");
