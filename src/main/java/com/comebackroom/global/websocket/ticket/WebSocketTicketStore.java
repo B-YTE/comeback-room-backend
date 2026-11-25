@@ -13,7 +13,7 @@ import java.util.UUID;
 public class WebSocketTicketStore {
 
     private static final String KEY_PREFIX = "ws-ticket:";
-    private static final Duration TTL = Duration.ofSeconds(30);
+    public static final Duration TTL = Duration.ofSeconds(10);
 
     private final StringRedisTemplate redisTemplate;
 
