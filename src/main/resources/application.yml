@@ -10,6 +10,9 @@ spring:
   jackson:
     deserialization:
       accept-float-as-int: false
+  data:
+    redis:
+      timeout: 2s
 
 management:
   endpoints:
