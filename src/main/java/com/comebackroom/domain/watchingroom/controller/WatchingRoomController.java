@@ -7,6 +7,8 @@ import com.comebackroom.domain.watchingroom.service.WatchingRoomService;
 import com.comebackroom.global.response.ApiResponse;
 import com.comebackroom.global.security.principal.MemberPrincipal;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +21,7 @@ public class WatchingRoomController {
 
     private final WatchingRoomService roomService;
 
+    // 시청방 참가
     @PostMapping("/watching-rooms/{roomId}/participants")
     public ResponseEntity<ApiResponse<JoinWatchingRoomResponse>> joinRoom(
             @PathVariable(name = "roomId") Long roomId,
@@ -32,6 +35,18 @@ public class WatchingRoomController {
         return ApiResponse.success(
                 WatchingRoomSuccessCode.WATCHING_ROOM_JOINED, response
         );
+    }
+
+    // 시청방 나가기
+    @DeleteMapping("/watching-rooms/{roomId}/participants")
+    public ResponseEntity<ApiResponse<Void>> leaveRoom(
+            @PathVariable(name = "roomId") Long roomId,
+            @AuthenticationPrincipal MemberPrincipal principal,
+            @RequestParam @NotBlank @Size(max = 36) String tabId
+    ) {
+        roomService.leaveRoom(roomId, principal.memberId(), tabId);
+
+        return ApiResponse.success(WatchingRoomSuccessCode.WATCHING_ROOM_LEFT);
     }
 
 }

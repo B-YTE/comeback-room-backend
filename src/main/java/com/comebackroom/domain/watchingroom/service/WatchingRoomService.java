@@ -36,6 +36,7 @@ public class WatchingRoomService {
     private final MemberRepository memberRepository;
 
 
+    // 시청방 참가
     // Redis 대기 동안 DB 커넥션을 붙잡지 않기 위해 @Transactional 생략
     public JoinWatchingRoomResponse joinRoom(
             Long roomId, Long requesterId, JoinWatchingRoomRequest request
@@ -66,11 +67,26 @@ public class WatchingRoomService {
             recordParticipation(room, requesterId);
         }
 
-        log.info("시청방 참가 roomId={} memberId={} tabId={} live={}", roomId, requesterId, tabId, live);
+        log.info("시청방 참가 성공 roomId={} memberId={} tabId={} live={}", roomId, requesterId, tabId, live);
         return JoinWatchingRoomResponse.of(
                 roomId, live ? RoomStatus.LIVE : RoomStatus.SCHEDULED,
                 now, ticket, tabId, WebSocketTicketStore.TTL
         );
+    }
+
+    // 시청방 나가기
+    public void leaveRoom(Long roomId, Long requesterId, String tabId) {
+        if (!watchingRoomRepository.existsById(roomId)) {
+            throw new BusinessException(WatchingRoomErrorCode.WATCHING_ROOM_NOT_FOUND);
+        }
+
+        try {
+            boolean fullyLeft = presenceStore.disconnect(roomId, requesterId, tabId);
+            log.info("시청방 나가기 성공 roomId={} memberId={} tabId={} fullyLeft={}",
+                    roomId, requesterId, tabId, fullyLeft);
+        } catch (RuntimeException e) {
+            log.error("시청방 나가기 처리 실패 roomId={} memberId={} tabId={}", roomId, requesterId, tabId, e);
+        }
     }
 
 
