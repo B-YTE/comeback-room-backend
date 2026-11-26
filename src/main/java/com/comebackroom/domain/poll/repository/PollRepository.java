@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PollRepository extends JpaRepository<Poll, Long> {
 
@@ -17,4 +18,12 @@ public interface PollRepository extends JpaRepository<Poll, Long> {
     ORDER BY o.id ASC
     """)
     List<Poll> findAllWithOptionsByRoomId(@Param("roomId") Long roomId);
+
+    @Query("""
+    SELECT p
+    FROM Poll p
+    JOIN FETCH p.room
+    WHERE p.id = :pollId
+    """)
+    Optional<Poll> findWithRoomById(@Param("pollId") Long pollId);
 }
