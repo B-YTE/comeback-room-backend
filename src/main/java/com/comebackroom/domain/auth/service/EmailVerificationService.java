@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Locale;
 
 @Slf4j
 @Service
@@ -39,7 +38,7 @@ public class EmailVerificationService {
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void sendCode(SendEmailVerificationCodeRequest request) {
-        String email = normalizeEmail(request.email());
+        String email = EmailNormalizer.normalize(request.email());
         EmailVerificationPurpose purpose = request.purpose();
         EmailMessage emailMessage = emailVerificationIssueService.issueCode(email, purpose);
 
@@ -55,7 +54,7 @@ public class EmailVerificationService {
 
     @Transactional(noRollbackFor = BusinessException.class)
     public EmailVerificationTokenResult verifyCode(VerifyEmailVerificationCodeRequest request) {
-        String email = normalizeEmail(request.email());
+        String email = EmailNormalizer.normalize(request.email());
         EmailVerificationPurpose purpose = request.purpose();
         LocalDateTime verifiedAt = currentDateTime();
         EmailVerification emailVerification = getVerifiableEmailVerification(
@@ -114,10 +113,6 @@ public class EmailVerificationService {
 
     private LocalDateTime currentDateTime() {
         return LocalDateTime.ofInstant(clock.instant(), APPLICATION_ZONE_ID);
-    }
-
-    private static String normalizeEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     private static String maskEmail(String email) {

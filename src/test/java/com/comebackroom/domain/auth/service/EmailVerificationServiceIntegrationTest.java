@@ -2,6 +2,7 @@ package com.comebackroom.domain.auth.service;
 
 import com.comebackroom.TestcontainersConfiguration;
 import com.comebackroom.domain.auth.dto.request.SendEmailVerificationCodeRequest;
+import com.comebackroom.domain.auth.dto.request.SignUpRequest;
 import com.comebackroom.domain.auth.dto.request.VerifyEmailVerificationCodeRequest;
 import com.comebackroom.domain.auth.entity.EmailVerification;
 import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
@@ -10,9 +11,12 @@ import com.comebackroom.domain.auth.repository.EmailVerificationRepository;
 import com.comebackroom.domain.member.entity.Member;
 import com.comebackroom.domain.member.enums.Provider;
 import com.comebackroom.domain.member.repository.MemberRepository;
+import com.comebackroom.global.config.TimeZoneConfig;
 import com.comebackroom.global.email.EmailDeliveryException;
+import com.comebackroom.global.email.EmailMessage;
 import com.comebackroom.global.email.EmailSender;
 import com.comebackroom.global.exception.BusinessException;
+import com.comebackroom.global.exception.GlobalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,10 +24,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -59,6 +65,12 @@ class EmailVerificationServiceIntegrationTest {
     private EmailVerificationService emailVerificationService;
 
     @Autowired
+    private SignUpService signUpService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
     private EmailVerificationRepository emailVerificationRepository;
 
     @Autowired
@@ -82,6 +94,7 @@ class EmailVerificationServiceIntegrationTest {
     void setUp() {
         emailVerificationRepository.deleteAll();
         given(clock.instant()).willReturn(NOW);
+        given(clock.getZone()).willReturn(TimeZoneConfig.APPLICATION_ZONE_ID);
         given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
     }
 
@@ -90,6 +103,71 @@ class EmailVerificationServiceIntegrationTest {
         if (registeredMember != null) {
             memberRepository.delete(registeredMember);
         }
+    }
+
+    @Test
+    void returnsCommonInputErrorForInvalidAvailabilityQueries() {
+        assertThatThrownBy(() -> signUpService.isLoginIdAvailable("Zin123"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT_VALUE));
+        assertThatThrownBy(() -> signUpService.isNicknameAvailable("진"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void createsMemberAndProfileAndConsumesTokenOnlyOnce() {
+        String token = issueSignUpToken();
+        SignUpRequest request = signUpRequest(token, "퍼비");
+        var response = signUpService.signUp(request);
+        registeredMember = memberRepository.findById(response.memberId()).orElseThrow();
+
+        try {
+            assertThat(response.email()).isEqualTo(EMAIL);
+            assertThat(response.nickname()).isEqualTo("퍼비");
+            assertThat(passwordEncoder.matches(request.password(), registeredMember.getPassword())).isTrue();
+            assertThat(signUpService.isLoginIdAvailable(request.loginId())).isFalse();
+            assertThat(signUpService.isNicknameAvailable(request.nickname())).isFalse();
+            assertThatThrownBy(() -> signUpService.signUp(request))
+                    .isInstanceOfSatisfying(BusinessException.class, exception ->
+                            assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT_VALUE));
+        } finally {
+            jdbcTemplate.update("DELETE FROM profiles WHERE member_id = ?", response.memberId());
+        }
+    }
+
+    @Test
+    void duplicateNicknameDoesNotConsumeTokenOrCreateMember() {
+        registeredMember = memberRepository.save(Member.createLocalMember(
+                "existing", "stored-password", "existing@example.com"
+        ));
+        jdbcTemplate.update("INSERT INTO profiles (member_id, nickname) VALUES (?, ?)",
+                registeredMember.getId(), "퍼비");
+
+        try {
+            String token = issueSignUpToken();
+            assertThatThrownBy(() -> signUpService.signUp(signUpRequest(token, "퍼비")))
+                    .isInstanceOfSatisfying(BusinessException.class, exception ->
+                            assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.DUPLICATE_MEMBER));
+            assertThat(memberRepository.existsByLoginId("zin123")).isFalse();
+            assertThat(emailVerificationRepository.findByEmailAndPurpose(EMAIL, EmailVerificationPurpose.SIGN_UP)
+                    .orElseThrow().getTokenConsumedAt()).isNull();
+        } finally {
+            jdbcTemplate.update("DELETE FROM profiles WHERE member_id = ?", registeredMember.getId());
+        }
+    }
+
+    @Test
+    void usesDifferentDeliveryKeysWhenTheSameCodeIsReissued() {
+        emailVerificationService.sendCode(sendRequest());
+        given(clock.instant()).willReturn(NOW.plus(Duration.ofMinutes(2)));
+        emailVerificationService.sendCode(sendRequest());
+
+        ArgumentCaptor<EmailMessage> messageCaptor = ArgumentCaptor.forClass(EmailMessage.class);
+        then(emailSender).should(times(2)).send(messageCaptor.capture());
+        assertThat(messageCaptor.getAllValues())
+                .extracting(EmailMessage::idempotencyKey)
+                .doesNotHaveDuplicates();
     }
 
     @ParameterizedTest
@@ -269,6 +347,19 @@ class EmailVerificationServiceIntegrationTest {
             allowIssuanceCompletion.countDown();
             executorService.shutdownNow();
         }
+    }
+
+    private String issueSignUpToken() {
+        emailVerificationService.sendCode(sendRequest());
+        return emailVerificationService.verifyCode(new VerifyEmailVerificationCodeRequest(
+                EMAIL, VERIFICATION_CODE, EmailVerificationPurpose.SIGN_UP
+        )).verificationToken();
+    }
+
+    private SignUpRequest signUpRequest(String token, String nickname) {
+        return new SignUpRequest(
+                "zin123", "ZIN@EXAMPLE.COM", token, nickname, "password123!", "password123!", true, true
+        );
     }
 
     private void createRegisteredMember(Provider provider) {

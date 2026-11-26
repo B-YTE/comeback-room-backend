@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -53,7 +54,7 @@ public class EmailVerificationIssueService {
                 ));
 
         emailVerificationRepository.saveAndFlush(emailVerification);
-        return createEmailMessage(email, purpose, verificationCode, codeHash);
+        return createEmailMessage(email, purpose, verificationCode);
     }
 
     private void validateSignUpEmailAvailability(String email, EmailVerificationPurpose purpose) {
@@ -92,8 +93,7 @@ public class EmailVerificationIssueService {
     private EmailMessage createEmailMessage(
             String email,
             EmailVerificationPurpose purpose,
-            String verificationCode,
-            String codeHash
+            String verificationCode
     ) {
         String text = """
                 Comeback Room %s 이메일 인증코드는 %s입니다.
@@ -105,6 +105,6 @@ public class EmailVerificationIssueService {
                 properties.codeExpiration().toMinutes()
         );
 
-        return new EmailMessage(email, EMAIL_SUBJECT, text, "email-verification/" + codeHash);
+        return new EmailMessage(email, EMAIL_SUBJECT, text, "email-verification/" + UUID.randomUUID());
     }
 }

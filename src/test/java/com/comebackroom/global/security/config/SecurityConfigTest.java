@@ -135,6 +135,15 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/v1/auth/login-id/availability",
+            "/api/v1/auth/nickname/availability"
+    })
+    void permitAvailabilityChecksWithoutAuthentication(String endpoint) throws Exception {
+        mockMvc.perform(get(endpoint)).andExpect(status().isOk());
+    }
+
     @Test
     @DisplayName("헬스 체크 경로는 인증 없이 접근할 수 있다")
     void permitHealthEndpoint() throws Exception {
@@ -349,6 +358,8 @@ class SecurityConfigTest {
 
         @GetMapping({
                 "/api/v1/oauth2/authorization/google",
+                "/api/v1/auth/login-id/availability",
+                "/api/v1/auth/nickname/availability",
                 "/api/v1/auth/sign-up",
                 "/actuator/health"
         })

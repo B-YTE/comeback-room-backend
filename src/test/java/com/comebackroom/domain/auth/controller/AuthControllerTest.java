@@ -5,10 +5,12 @@ import com.comebackroom.domain.auth.dto.IssuedTokenResult;
 import com.comebackroom.domain.auth.dto.request.LoginRequest;
 import com.comebackroom.domain.auth.dto.request.SendEmailVerificationCodeRequest;
 import com.comebackroom.domain.auth.dto.request.VerifyEmailVerificationCodeRequest;
+import com.comebackroom.domain.auth.dto.response.SignUpResponse;
 import com.comebackroom.domain.auth.enums.EmailVerificationPurpose;
 import com.comebackroom.domain.auth.exception.AuthErrorCode;
 import com.comebackroom.domain.auth.service.AuthService;
 import com.comebackroom.domain.auth.service.EmailVerificationService;
+import com.comebackroom.domain.auth.service.SignUpService;
 import com.comebackroom.global.email.EmailDeliveryException;
 import com.comebackroom.global.exception.BusinessException;
 import com.comebackroom.global.exception.GlobalExceptionHandler;
@@ -45,6 +47,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
@@ -73,7 +76,50 @@ class AuthControllerTest {
     private EmailVerificationService emailVerificationService;
 
     @MockitoBean
+    private SignUpService signUpService;
+
+    @MockitoBean
     private RefreshTokenCookieProvider refreshTokenCookieProvider;
+
+    @Test
+    void returnsAvailabilityForAvailableAndTakenValues() throws Exception {
+        given(signUpService.isLoginIdAvailable("zin123")).willReturn(true);
+        given(signUpService.isNicknameAvailable("퍼비")).willReturn(false);
+
+        mockMvc.perform(get("/api/v1/auth/login-id/availability").param("loginId", "zin123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("LOGIN_ID_AVAILABILITY_FOUND"))
+                .andExpect(jsonPath("$.data.available").value(true));
+        mockMvc.perform(get("/api/v1/auth/nickname/availability").param("nickname", "퍼비"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("NICKNAME_AVAILABILITY_FOUND"))
+                .andExpect(jsonPath("$.data.available").value(false));
+    }
+
+    @Test
+    void returnsCreatedMember() throws Exception {
+        given(signUpService.signUp(any())).willReturn(new SignUpResponse(1L, "zin@example.com", "퍼비"));
+
+        mockMvc.perform(post("/api/v1/auth/sign-up")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "loginId": "zin123",
+                                  "email": "zin@example.com",
+                                  "emailVerificationToken": "verification-token",
+                                  "nickname": "퍼비",
+                                  "password": "password123!",
+                                  "passwordConfirm": "password123!",
+                                  "termsAgreed": true,
+                                  "privacyAgreed": true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("MEMBER_CREATED"))
+                .andExpect(jsonPath("$.data.memberId").value(1))
+                .andExpect(jsonPath("$.data.email").value("zin@example.com"))
+                .andExpect(jsonPath("$.data.nickname").value("퍼비"));
+    }
 
     @Test
     @DisplayName("로그인 성공 시 Access Token 응답과 Refresh Token 쿠키를 반환한다")
