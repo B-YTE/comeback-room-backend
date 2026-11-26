@@ -11,6 +11,7 @@ import com.comebackroom.domain.auth.repository.EmailVerificationRepository;
 import com.comebackroom.domain.member.entity.Member;
 import com.comebackroom.domain.member.enums.Provider;
 import com.comebackroom.domain.member.repository.MemberRepository;
+import com.comebackroom.global.config.TimeZoneConfig;
 import com.comebackroom.global.email.EmailDeliveryException;
 import com.comebackroom.global.email.EmailMessage;
 import com.comebackroom.global.email.EmailSender;
@@ -93,6 +94,7 @@ class EmailVerificationServiceIntegrationTest {
     void setUp() {
         emailVerificationRepository.deleteAll();
         given(clock.instant()).willReturn(NOW);
+        given(clock.getZone()).willReturn(TimeZoneConfig.APPLICATION_ZONE_ID);
         given(codeGenerator.generateCode()).willReturn(VERIFICATION_CODE);
     }
 
@@ -101,6 +103,16 @@ class EmailVerificationServiceIntegrationTest {
         if (registeredMember != null) {
             memberRepository.delete(registeredMember);
         }
+    }
+
+    @Test
+    void returnsCommonInputErrorForInvalidAvailabilityQueries() {
+        assertThatThrownBy(() -> signUpService.isLoginIdAvailable("Zin123"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT_VALUE));
+        assertThatThrownBy(() -> signUpService.isNicknameAvailable("진"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(GlobalErrorCode.INVALID_INPUT_VALUE));
     }
 
     @Test

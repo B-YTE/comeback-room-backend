@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -35,7 +34,6 @@ public class SignUpService {
     private static final Pattern ENGLISH_LETTER = Pattern.compile("[a-zA-Z]");
     private static final Pattern DIGIT = Pattern.compile("[0-9]");
     private static final int BCRYPT_MAX_PASSWORD_BYTES = 72;
-    private static final ZoneId APPLICATION_ZONE_ID = ZoneId.of("Asia/Seoul");
     private static final Set<String> MEMBER_UNIQUE_CONSTRAINTS = Set.of(
             "uk_members_login_id", "uk_members_email", "uk_profiles_nickname"
     );
@@ -50,7 +48,7 @@ public class SignUpService {
     @Transactional(readOnly = true)
     public boolean isLoginIdAvailable(String loginId) {
         if (!matches(LOGIN_ID_PATTERN, loginId)) {
-            throw new BusinessException(AuthErrorCode.INVALID_LOGIN_ID);
+            throw new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE);
         }
         return !memberRepository.existsByLoginId(loginId);
     }
@@ -58,7 +56,7 @@ public class SignUpService {
     @Transactional(readOnly = true)
     public boolean isNicknameAvailable(String nickname) {
         if (!matches(NICKNAME_PATTERN, nickname)) {
-            throw new BusinessException(AuthErrorCode.INVALID_NICKNAME);
+            throw new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE);
         }
         return !profileRepository.existsByNickname(nickname);
     }
@@ -66,11 +64,11 @@ public class SignUpService {
     @Transactional
     public SignUpResponse signUp(SignUpRequest request) {
         validateSignUp(request);
-        String email = EmailVerificationService.normalizeEmail(request.email());
+        String email = EmailNormalizer.normalize(request.email());
         EmailVerification verification = emailVerificationRepository
                 .findWithLockByEmailAndPurpose(email, EmailVerificationPurpose.SIGN_UP)
                 .orElseThrow(() -> new BusinessException(GlobalErrorCode.INVALID_INPUT_VALUE));
-        LocalDateTime consumedAt = LocalDateTime.ofInstant(clock.instant(), APPLICATION_ZONE_ID);
+        LocalDateTime consumedAt = LocalDateTime.now(clock);
         validateVerificationToken(verification, request.emailVerificationToken(), consumedAt);
 
         if (memberRepository.existsByLoginId(request.loginId())
