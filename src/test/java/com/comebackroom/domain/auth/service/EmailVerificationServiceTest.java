@@ -148,7 +148,7 @@ class EmailVerificationServiceTest {
                 () -> assertThat(sentMessage.recipient()).isEqualTo(EMAIL),
                 () -> assertThat(sentMessage.text()).contains(VERIFICATION_CODE),
                 () -> assertThat(sentMessage.idempotencyKey())
-                        .isEqualTo("email-verification/" + expectedCodeHash)
+                        .matches("email-verification/[0-9a-f-]{36}")
         );
 
         InOrder callOrder = inOrder(emailVerificationRepository, emailSender);
