@@ -40,18 +40,20 @@ public class PresenceHeartbeatInterceptor implements ChannelInterceptor {
         Map<String, Object> attributes = accessor.getSessionAttributes();
         Long roomId = attributes == null ? null
                 : toRoomId(attributes.get(StompAuthChannelInterceptor.ROOM_ID_ATTRIBUTE));
+        String tabId = attributes == null ? null
+                : toTabId(attributes.get(StompAuthChannelInterceptor.TAB_ID_ATTRIBUTE));
 
-        if (sessionId == null || memberId == null || roomId == null) {
+        if (memberId == null || roomId == null || tabId == null) {
             log.warn("하트비트에서 접속 정보를 찾지 못했습니다: sessionId={}", sessionId);
             return message;
         }
 
         boolean registered;
         try {
-            registered = presenceStore.heartbeat(roomId, memberId, sessionId);
+            registered = presenceStore.heartbeat(roomId, memberId, tabId);
         } catch (RuntimeException e) {
-            log.error("하트비트 갱신 실패: roomId={}, memberId={}, sessionId={}",
-                    roomId, memberId, sessionId, e);
+            log.error("하트비트 갱신 실패: roomId={}, memberId={}, tabId={}, sessionId={}",
+                    roomId, memberId, tabId, sessionId, e);
             return message;
         }
 
@@ -68,6 +70,10 @@ public class PresenceHeartbeatInterceptor implements ChannelInterceptor {
 
     private Long toRoomId(Object value) {
         return value instanceof Long roomId ? roomId : null;
+    }
+
+    private String toTabId(Object value) {
+        return value instanceof String tabId ? tabId : null;
     }
 
 }

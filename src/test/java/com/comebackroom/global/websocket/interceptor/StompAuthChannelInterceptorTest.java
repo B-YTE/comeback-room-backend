@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.comebackroom.global.websocket.interceptor.StompAuthChannelInterceptor.ROOM_ID_ATTRIBUTE;
+import static com.comebackroom.global.websocket.interceptor.StompAuthChannelInterceptor.TAB_ID_ATTRIBUTE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -35,7 +36,9 @@ public class StompAuthChannelInterceptorTest {
 
     private static final Long MEMBER_ID = 1L;
     private static final Long ROOM_ID = 1L;
+    private static final String TAB_ID = "1";
     private static final Long OTHER_ROOM_ID = 16L;
+
     private static final String TICKET = "valid-ticket";
     private static final String INVALID_TICKET = "invalid-ticket";
 
@@ -58,7 +61,7 @@ public class StompAuthChannelInterceptorTest {
         void connectWithValidTicket_recordsMemberAndRoom() {
             // given
             given(ticketStore.consume(TICKET))
-                    .willReturn(Optional.of(new TicketInfo(MEMBER_ID, ROOM_ID)));
+                    .willReturn(Optional.of(new TicketInfo(MEMBER_ID, ROOM_ID, TAB_ID)));
             StompHeaderAccessor accessor = accessorOf(StompCommand.CONNECT, new HashMap<>());
             accessor.setNativeHeader("ticket", TICKET);
             Message<?> message = messageOf(accessor);
@@ -70,6 +73,7 @@ public class StompAuthChannelInterceptorTest {
             assertThat(result).isSameAs(message);
             assertThat(accessor.getUser()).isEqualTo(new MemberPrincipal(MEMBER_ID));
             assertThat(accessor.getSessionAttributes()).containsEntry(ROOM_ID_ATTRIBUTE, ROOM_ID);
+            assertThat(accessor.getSessionAttributes()).containsEntry(TAB_ID_ATTRIBUTE, TAB_ID);
         }
 
         @Test

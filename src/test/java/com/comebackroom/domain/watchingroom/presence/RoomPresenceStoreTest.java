@@ -15,7 +15,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -24,9 +26,11 @@ public class RoomPresenceStoreTest {
 
     private static final Instant START_TIME = Instant.parse("2026-11-01T00:00:00Z");
     private static final Long MEMBER_ID = 1L;
-    private static final String TAB_A = "session-a";
-    private static final String TAB_B = "session-b";
+    private static final String TAB_A = "tab-a";
+    private static final String TAB_B = "tab-b";
     private static final int REFRESH_ROUNDS = 200;
+    private static final int MAX_PARTICIPANTS = 5;
+    private static final Duration HOLD = Duration.ofSeconds(10);
 
     // 컨테이너를 공유하는 테스트끼리 겹치지 않도록 매번 새 id 발급
     private static final AtomicLong ROOM_ID_SEQUENCE = new AtomicLong();
@@ -48,10 +52,12 @@ public class RoomPresenceStoreTest {
                 redis.getHost(), redis.getMappedPort(6379));
         connectionFactory.afterPropertiesSet();
     }
+
     @AfterAll
     static void disconnectRedis() {
         connectionFactory.destroy();
     }
+
     @BeforeEach
     void setUp() {
         store = new RoomPresenceStore(
@@ -174,6 +180,34 @@ public class RoomPresenceStoreTest {
     }
 
     @Test
+    @DisplayName("연결한 회원은 접속 중이고, 해제하면 접속 중이 아니다")
+    void isConnected_trueAfterConnectAndFalseAfterDisconnect() {
+        // given
+        store.connect(roomId, MEMBER_ID, TAB_A);
+
+        // when & then
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isTrue();
+
+        store.disconnect(roomId, MEMBER_ID, TAB_A);
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("하트비트 없이 접속 유효 시간(LEASE)이 지나면 접속 중이 아니다")
+    void isConnected_falseAfterLeaseWithoutHeartbeat() {
+        // given
+        store.connect(roomId, MEMBER_ID, TAB_A);
+
+        // when & then
+        clock.advance(RoomPresenceStore.LEASE.minusSeconds(1));
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isTrue();
+
+        // when & then
+        clock.advance(Duration.ofSeconds(2));
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isFalse();
+    }
+
+    @Test
     @DisplayName("하트비트 없이 접속 유효 시간(LEASE)이 지나면 인원에서 빠진다")
     void noHeartbeat_removesMemberAfterLease() {
         // given
@@ -212,6 +246,78 @@ public class RoomPresenceStoreTest {
         assertThat(store.countMembers(roomId)).isEqualTo(1L);
         assertThat(store.disconnect(roomId, MEMBER_ID, TAB_A)).isTrue();
         assertThat(store.countMembers(roomId)).isZero();
+    }
+
+    @Test
+    @Timeout(10)
+    @DisplayName("자리가 1개 남은 방에 100명이 동시에 예약하면 1명만 성공한다")
+    void reserveConcurrently_grantsOnlyRemainingSeats() throws Exception {
+        // given
+        for (long memberId = 101; memberId <= 104; memberId++) {
+            store.connect(roomId, memberId, "tab-" + memberId);
+        }
+        AtomicInteger granted = new AtomicInteger();
+        Runnable[] tasks = LongStream.rangeClosed(1, 100)
+                .<Runnable>mapToObj(memberId ->
+                        () -> {
+                            if (store.reserve(roomId, memberId, MAX_PARTICIPANTS, HOLD)) {
+                                granted.incrementAndGet();
+                            }
+                        })
+                .toArray(Runnable[]::new);
+
+        // when
+        runConcurrently(tasks);
+
+        // then
+        assertThat(granted.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("정원이 찬 방에서 접속 중인 회원이 다시 예약하면 추가 자리가 생기지 않는다")
+    void reserveByConnectedMember_doesNotTakeExtraSeat() {
+        // given
+        for (long memberId = 1; memberId <= MAX_PARTICIPANTS; memberId++) {
+            store.connect(roomId, memberId, "tab-" + memberId);
+        }
+
+        // when & then
+        assertThat(store.reserve(roomId, 1L, MAX_PARTICIPANTS, HOLD)).isTrue();
+        assertThat(store.reserve(roomId, 99L, MAX_PARTICIPANTS, HOLD)).isFalse();
+
+        store.disconnect(roomId, 2L, "tab-2");
+        assertThat(store.reserve(roomId, 99L, MAX_PARTICIPANTS, HOLD)).isTrue();
+    }
+
+    @Test
+    @DisplayName("예약만 하고 연결하지 않으면 hold가 지난 후 다시 자리가 생긴다")
+    void reserveWithoutConnect_releasesSeatAfterHold() {
+        // given
+        assertThat(store.reserve(roomId, 1L, 1, HOLD)).isTrue();
+
+        // when & then
+        clock.advance(HOLD.minusSeconds(1));
+        assertThat(store.reserve(roomId, 2L, 1, HOLD)).isFalse();
+
+        clock.advance(Duration.ofSeconds(2));
+        assertThat(store.reserve(roomId, 2L, 1, HOLD)).isTrue();
+    }
+
+    @Test
+    @DisplayName("예약한 회원이 연결하면 예약이 접속으로 바뀌어 자리를 두 번 차지하지 않는다")
+    void connectAfterReserve_movesReservationToMember() {
+        // given
+        store.reserve(roomId, 1L, 3, HOLD);
+        store.connect(roomId, 1L, TAB_A);
+        store.reserve(roomId, 2L, 3, HOLD);
+
+        // when
+        boolean third = store.reserve(roomId, 3L, 3, HOLD);
+        boolean fourth = store.reserve(roomId, 4L, 3, HOLD);
+
+        // then
+        assertThat(third).isTrue();
+        assertThat(fourth).isFalse();
     }
 
 

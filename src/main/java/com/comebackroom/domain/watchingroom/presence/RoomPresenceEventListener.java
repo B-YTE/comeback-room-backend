@@ -44,17 +44,19 @@ public class RoomPresenceEventListener {
         SimpAttributes sessionAttributes = SimpAttributesContextHolder.getAttributes();
         Long roomId = sessionAttributes == null ? null
                 : toRoomId(sessionAttributes.getAttribute(StompAuthChannelInterceptor.ROOM_ID_ATTRIBUTE));
+        String tabId = sessionAttributes == null ? null
+                : toTabId(sessionAttributes.getAttribute(StompAuthChannelInterceptor.TAB_ID_ATTRIBUTE));
 
-        if (sessionId == null || memberId == null || roomId == null) {
+        if (memberId == null || roomId == null || tabId == null) {
             log.error("연결 성공 이벤트에서 접속 정보를 찾지 못했습니다: sessionId={}", sessionId);
             return;
         }
 
         try {
-            presenceStore.connect(roomId, memberId, sessionId);
+            presenceStore.connect(roomId, memberId, tabId);
         } catch (RuntimeException e) {
-            log.error("접속 상태 기록 실패: roomId={}, memberId={}, sessionId={}",
-                    roomId, memberId, sessionId, e);
+            log.error("접속 상태 기록 실패: roomId={}, memberId={}, tabId={}, sessionId={}",
+                    roomId, memberId, tabId, sessionId, e);
         }
     }
 
@@ -68,24 +70,27 @@ public class RoomPresenceEventListener {
         Long roomId = attributes == null
                 ? null
                 : toRoomId(attributes.get(StompAuthChannelInterceptor.ROOM_ID_ATTRIBUTE));
+        String tabId = attributes == null
+                ? null
+                : toTabId(attributes.get(StompAuthChannelInterceptor.TAB_ID_ATTRIBUTE));
 
-        if (memberId == null || roomId == null) {
+        if (memberId == null || roomId == null || tabId == null) {
             log.debug("인증되지 않은 연결 해제: sessionId={}, status={}",
                     sessionId, event.getCloseStatus());
             return;
         }
 
         Instant runAt = presenceTaskScheduler.getClock().instant().plus(DISCONNECT_GRACE);
-        presenceTaskScheduler.schedule(() -> disconnectAfterGrace(roomId, memberId, sessionId), runAt);
+        presenceTaskScheduler.schedule(() -> disconnectAfterGrace(roomId, memberId, tabId, sessionId), runAt);
 
     }
 
-    private void disconnectAfterGrace(Long roomId, Long memberId, String sessionId) {
+    private void disconnectAfterGrace(Long roomId, Long memberId, String tabId, String sessionId) {
         try {
-            presenceStore.disconnect(roomId, memberId, sessionId);
+            presenceStore.disconnect(roomId, memberId, tabId);
         } catch (RuntimeException e) {
-            log.error("유예 후 접속 해제 실패: roomId={}, memberId={}, sessionId={}",
-                    roomId, memberId, sessionId, e);
+            log.error("유예 후 접속 해제 실패: roomId={}, memberId={}, tabId={}, sessionId={}",
+                    roomId, memberId, tabId, sessionId, e);
         }
     }
 
@@ -95,5 +100,9 @@ public class RoomPresenceEventListener {
 
     private Long toRoomId(Object value) {
         return value instanceof Long roomId ? roomId : null;
+    }
+
+    private String toTabId(Object value) {
+        return value instanceof String tabId ? tabId : null;
     }
 }

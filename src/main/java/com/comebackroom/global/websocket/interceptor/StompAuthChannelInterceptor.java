@@ -14,6 +14,7 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,6 +24,7 @@ import java.util.regex.Pattern;
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     public static final String ROOM_ID_ATTRIBUTE = "roomId";
+    public static final String TAB_ID_ATTRIBUTE = "tabId";
 
     private static final String TICKET_HEADER = "ticket";
 
@@ -55,9 +57,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         TicketInfo ticketInfo = ticketStore.consume(
                 accessor.getFirstNativeHeader(TICKET_HEADER)
         ).orElseThrow(() -> new BusinessException(WebSocketErrorCode.INVALID_TICKET));
+
         accessor.setUser(new MemberPrincipal(ticketInfo.memberId())); // 해당 세션(연결)의 사용자 식별자 기록
-        Objects.requireNonNull(accessor.getSessionAttributes(), "STOMP 세션 속성이 없습니다.")
-                .put(ROOM_ID_ATTRIBUTE, ticketInfo.roomId()); // 해당 세션(연결)의 방 식별자 기록
+
+        Map<String, Object> sessionAttributes =
+                Objects.requireNonNull(accessor.getSessionAttributes(), "STOMP 세션 속성이 없습니다.");
+        sessionAttributes.put(ROOM_ID_ATTRIBUTE, ticketInfo.roomId()); // 해당 세션(연결)의 방 식별자 기록
+        sessionAttributes.put(TAB_ID_ATTRIBUTE, ticketInfo.tabId()); // 해당 세션(연결)의 탭 식별자 기록
     }
 
     private void authorizeSubscribe(StompHeaderAccessor accessor) {

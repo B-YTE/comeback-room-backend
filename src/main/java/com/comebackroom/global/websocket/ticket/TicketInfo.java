@@ -2,6 +2,7 @@ package com.comebackroom.global.websocket.ticket;
 
 public record TicketInfo(
         Long memberId,
-        Long roomId
+        Long roomId,
+        String tabId
 ) {
 }
