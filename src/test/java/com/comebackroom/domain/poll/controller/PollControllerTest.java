@@ -157,7 +157,7 @@ class PollControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.code").value("WATCHING_ROOM_ALREADY_ENDED"))
-                .andExpect(jsonPath("$.message").value("종료된 시청방에서는 투표를 만들 수 없습니다."))
+                .andExpect(jsonPath("$.message").value("이미 종료된 시청방입니다."))
                 .andExpect(jsonPath("$.path").value(CREATE_POLL_PATH))
                 .andExpect(jsonPath("$.timestamp").exists());
     }

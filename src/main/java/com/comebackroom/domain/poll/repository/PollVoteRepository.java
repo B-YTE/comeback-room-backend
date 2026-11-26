@@ -3,6 +3,7 @@ package com.comebackroom.domain.poll.repository;
 import com.comebackroom.domain.poll.dto.query.PollOptionVoteCount;
 import com.comebackroom.domain.poll.entity.PollVote;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,4 +23,8 @@ public interface PollVoteRepository extends JpaRepository<PollVote, Long> {
     """)
     List<PollOptionVoteCount> countByPollIds(@Param("pollIds") List<Long> pollIds,
                                              @Param("memberId") Long memberId);
+
+    @Modifying
+    @Query("DELETE FROM PollVote v WHERE v.poll.id = :pollId")
+    int bulkDeleteByPollId(@Param("pollId") Long pollId);
 }

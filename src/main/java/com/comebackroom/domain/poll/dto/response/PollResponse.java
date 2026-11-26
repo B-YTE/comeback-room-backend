@@ -4,7 +4,6 @@ import com.comebackroom.domain.poll.dto.query.PollOptionVoteCount;
 import com.comebackroom.domain.poll.entity.Poll;
 import com.comebackroom.domain.poll.entity.PollOption;
 import com.comebackroom.domain.poll.enums.PollStatus;
-import com.comebackroom.domain.poll.repository.PollRepository;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;

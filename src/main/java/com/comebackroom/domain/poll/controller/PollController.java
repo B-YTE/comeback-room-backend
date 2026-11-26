@@ -38,4 +38,13 @@ public class PollController {
         PollListResponse response = pollService.getPolls(roomId, principal.memberId());
         return ApiResponse.success(PollSuccessCode.POLL_LIST_RETRIEVED, response);
     }
+
+    @DeleteMapping("/polls/{pollId}")
+    public ResponseEntity<ApiResponse<Void>> deletePoll(
+            @PathVariable Long pollId,
+            @AuthenticationPrincipal MemberPrincipal principal
+    ) {
+        pollService.deletePoll(pollId, principal.memberId());
+        return ApiResponse.success(PollSuccessCode.POLL_DELETED);
+    }
 }
