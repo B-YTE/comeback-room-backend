@@ -180,6 +180,34 @@ public class RoomPresenceStoreTest {
     }
 
     @Test
+    @DisplayName("연결한 회원은 접속 중이고, 해제하면 접속 중이 아니다")
+    void isConnected_trueAfterConnectAndFalseAfterDisconnect() {
+        // given
+        store.connect(roomId, MEMBER_ID, TAB_A);
+
+        // when & then
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isTrue();
+
+        store.disconnect(roomId, MEMBER_ID, TAB_A);
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("하트비트 없이 접속 유효 시간(LEASE)이 지나면 접속 중이 아니다")
+    void isConnected_falseAfterLeaseWithoutHeartbeat() {
+        // given
+        store.connect(roomId, MEMBER_ID, TAB_A);
+
+        // when & then
+        clock.advance(RoomPresenceStore.LEASE.minusSeconds(1));
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isTrue();
+
+        // when & then
+        clock.advance(Duration.ofSeconds(2));
+        assertThat(store.isConnected(roomId, MEMBER_ID)).isFalse();
+    }
+
+    @Test
     @DisplayName("하트비트 없이 접속 유효 시간(LEASE)이 지나면 인원에서 빠진다")
     void noHeartbeat_removesMemberAfterLease() {
         // given
